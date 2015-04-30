@@ -1,5 +1,7 @@
 import praw, socket, ssl, time
 
+__author__ = 'Brian W.'
+
 class setupBot:
     def __init__(self):
         yesorno = input("Do you want to write a new configuration file? y/N: ")
@@ -31,7 +33,6 @@ class IRCbot:
     
     socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     def __init__(self):
-#        try:
         with open('nwobot.conf', 'r') as file:
             f = file.read()
             self.info = eval(f)
@@ -39,11 +40,6 @@ class IRCbot:
         for channel in self.info['CHAN'].split(','):
             self.activeDict[channel] = {} 
         self.connect()
-#        except IOError:
-#            f = open('nwobot.conf','w+')
-#            f.write('Host\nPort\nNick\nNickserv (True/False)\nIdent\nPassword\nRealname\nChannels(Comma Separated)')
-#            f.close()
-#            sys.exit()
         
     def connect(self):
         self.socket.connect((self.info['HOST'], int(self.info['PORT'])))
@@ -133,6 +129,11 @@ class IRCbot:
                         if Host in self.info['SUDOER']:
                             self.info['SUDOER'] = self.info['SUDOER']+','+','.join(trail[1:])
                             self.updateFile()
+
+                    # executes command
+                    elif trail[0] == '!nwodo':
+                        if Host in self.info['SUDOER']:
+                            self.ircSend(' '.join(trail[1:]))
 
                     # checks for reddit command
                     elif trail[0] == '!reddit':
