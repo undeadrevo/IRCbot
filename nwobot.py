@@ -1,4 +1,25 @@
-import praw, socket, ssl, string, sys, time
+import praw, socket, ssl, time
+
+class setupBot:
+    def __init__(self):
+        yesorno = input("Do you want to write a new configuration file? y/N: ")
+        if 'Y' in yesorno or 'y' in yesorno:
+            while True:
+                self.newinfo = {}
+                self.newinfo['HOST'] = input("\nEnter the IRC server that the bot should join: ")
+                self.newinfo['PORT'] = input("Enter the port that the bot should connect with: ")
+                self.newinfo['NICK'] = input("Enter the nickname that the bot should use: ")
+                self.newinfo['PASS'] = input("Enter the password that the bot will authenticate with (if applicable): ")
+                self.newinfo['NAME'] = input("Enter the realname that the bot should have: ")
+                self.newinfo['CHAN'] = input("Enter the channels that the bot should join (comma separated): ")
+                self.newinfo['IGNORE'] = input("Enter the nicks that the bot should ignore (comma separated): ")
+                self.newinfo['SUDOER'] = input("Enter the hosts to receive extra privileges (comma separated): ")
+                print("\n%s" % self.newinfo)
+                confirm = input("\n Confirm? y/N: ")
+                if 'Y' in confirm or 'y' in confirm:
+                    break
+            with open('nwobot.conf', 'w+') as file:
+                file.write(str(self.newinfo))
 
 class IRCbot:
     # Reddit API
@@ -11,19 +32,12 @@ class IRCbot:
     socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     def __init__(self):
 #        try:
-        f = open('nwobot.conf')
-        self.host = f.readline().strip()
-        self.port = int(f.readline().strip())
-        self.nick = f.readline().strip()
-        self.nicksv = bool(f.readline().strip())
-        self.ident = f.readline().strip()
-        self.passwd = f.readline().strip()
-        self.rname = f.readline().strip()
-        self.chans = f.readline().strip().split(',')
-        f.close()
+        with open('nwobot.conf', 'r') as file:
+            f = file.read()
+            self.info = eval(f)
         self.activeDict = {}
-        for chan in self.chans:
-            self.activeDict[chan] = {} 
+        for channel in self.info['CHAN'].split(','):
+            self.activeDict[channel] = {} 
         self.connect()
 #        except IOError:
 #            f = open('nwobot.conf','w+')
@@ -32,14 +46,14 @@ class IRCbot:
 #            sys.exit()
         
     def connect(self):
-        self.socket.connect((self.host, self.port))
+        self.socket.connect((self.info['HOST'], int(self.info['PORT'])))
         self.irc = ssl.wrap_socket(self.socket)
-        self.ircSend('NICK %s' % self.nick)
-        self.ircSend('USER %s %s %s :%s' % (self.nick, self.nick, self.ident, self.rname))
+        self.ircSend('NICK %s' % self.info['NICK'])
+        self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
         self.main()
         
     def joinChannel(self):
-        self.ircSend('JOIN %s' % ','.join(self.chans))
+        self.ircSend('JOIN %s' % self.info['CHAN'])
 
     def main(self):
         while True:
@@ -52,6 +66,14 @@ class IRCbot:
                 if line[0] == ':':
                     prefixEnd = line.find(' ')
                     prefix = line[1:prefixEnd]
+                    if '!' in prefix and '@' in prefix:
+                        Nick = prefix.split('!')[0]
+                        Ident = prefix.split('!')[1].split('@')[0]
+                        Host = prefix.split('!')[1].split('@')[1]
+                    else:
+                        Nick = ''
+                        Ident = ''
+                        Host = ''
                 else:
                     prefixEnd = -1
                     prefix = ''
@@ -75,15 +97,15 @@ class IRCbot:
                     self.ircSend('PONG :%s' % trail[0])
                 
                 # checks when identified with nickserv
-                if command == 'NOTICE':
+                if command == 'NOTICE' and Nick == 'NickServ':
                     if len(trail) > 3:
                         if 'registered' in trail[3]:
-                            self.ircSend('PRIVMSG NickServ :identify %s' % self.passwd)
+                            self.ircSend('PRIVMSG NickServ :identify %s' % self.info['PASS'])
                         if trail[3] == 'identified':
                             self.joinChannel()
                     
                 # checks for INVITE received
-                if command == 'INVITE' and parameters[0] == self.nick:
+                if command == 'INVITE' and parameters[0] == self.info['NICK']:
                     self.addChannel(trail[0])
                     
                 # checks when PRIVMSG received
@@ -95,12 +117,25 @@ class IRCbot:
                     if context not in self.activeDict:
                         self.activeDict[context] = {}
                     self.activeDict[context][prefix.split('!')[0]] = time.mktime(time.gmtime())
-
+                    
+                    # returns active users
                     if trail[0] == '!active':
                         self.ircSend('PRIVMSG %s :%s' % (context, len(self.listActive(context))))
+                        
+                    # adds users to ignore list (ie: bots)
+                    elif trail[0] == '!addignore':
+                        if Host in self.info['SUDOER']:
+                            self.info['IGNORE'] = self.info['IGNORE']+','+','.join(trail[1:])
+                            self.updateFile()
+                            
+                    # adds users to sudoer list (ie: bots)
+                    elif trail[0] == '!addadmin':
+                        if Host in self.info['SUDOER']:
+                            self.info['SUDOER'] = self.info['SUDOER']+','+','.join(trail[1:])
+                            self.updateFile()
 
                     # checks for reddit command
-                    if trail[0] == '!reddit':
+                    elif trail[0] == '!reddit':
                         if time.mktime(time.gmtime()) - IRCbot.redditLimit > 2:
                             try:
                                 subreddit = trail[1]
@@ -111,21 +146,24 @@ class IRCbot:
                             IRCbot.redditLimit = time.mktime(time.gmtime())              
     
     def addChannel(self,channel):
-        f = open('nwobot.conf','a')
-        f.write(','+channel)
-        f.close()
-        self.chans.append(channel)
+        self.info['CHAN'] = str(self.info['CHAN'])+','+channel
+        self.updateFile()
         self.joinChannel()
+        
+    def updateFile(self):
+        with open('nwobot.conf', 'w+') as file:
+            file.write(str(self.info))
     
     def listActive(self,chan,minutes=10):
         activeList = []
         for key in self.activeDict[chan]:
-            if time.mktime(time.gmtime()) - self.activeDict[chan][key] <= minutes * 60:
+            if key not in self.info['IGNORE'] and time.mktime(time.gmtime()) - self.activeDict[chan][key] <= minutes * 60:
                 activeList.append(key)
         return activeList
 
     def ircSend(self,msg):
         print(msg)
         self.irc.send(bytes(str(msg)+'\r\n', 'UTF-8'))
-                
+
+setupBot()
 IRCbot()
