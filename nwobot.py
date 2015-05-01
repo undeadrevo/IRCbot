@@ -3,7 +3,7 @@
 
 import praw, socket, ssl, time
 
-__author__ = 'Brian W.'
+# Author = Brian W.
 
 class setupBot:
     def __init__(self):
@@ -166,7 +166,7 @@ class IRCbot:
                                 try:
                                     subreddit = trail[1]
                                     submission = IRCbot.r.get_subreddit(subreddit).get_random_submission()
-                                    self.ircSend('PRIVMSG %s :%s - %s' % (context, submission.title, submission.url))
+                                    self.ircSend('PRIVMSG %s :[r/%s] %s - %s' % (context, subreddit, submission.title, submission.url))
                                 except:
                                     pass
                                 IRCbot.redditLimit = time.mktime(time.gmtime())     
