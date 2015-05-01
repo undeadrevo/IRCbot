@@ -105,15 +105,28 @@ class IRCbot:
                         self.addChannel(trail[0])
 
                     # adds users to username list
-                    if str(command) == '353':
-                        self.ircSend('WHO {0} %an'.format(parameters[2]))
-                                
-                    if str(command) == '354':
+                    if command == 'JOIN':
+                        if Nick == self.info['NICK']:
+                            self.ircSend('WHO {0} %an'.format(parameters[0]))
+                        else:
+                            self.ircSend('WHOIS %s' % Nick)
+                    
+                    # parses WHO(IS) command
+                    if str(command) == '354' or str(command) == '330':
                         if parameters[2] not in self.info['USERNAMES']:
                             self.info['USERNAMES'][parameters[2]] = []
                         if parameters[1] not in self.info['USERNAMES'][parameters[2]]:
                             self.info['USERNAMES'][parameters[2]].append(parameters[1])
                         self.updateFile()
+                        
+                    # updates active list if user leaves
+                    if command == 'PART':
+                        if Nick in self.activeDict[parameters[0]]:
+                            self.activeDict[parameters[0]].pop(Nick, None)
+                    if command == 'QUIT':
+                        for channels in self.info['CHAN'].split(','):
+                            if Nick in self.activeDict[channels]:
+                                self.activeDict[channels].pop(Nick, None)
                         
                     # checks when PRIVMSG received
                     if command == 'PRIVMSG':
@@ -123,7 +136,7 @@ class IRCbot:
                         # builds last spoke list
                         if context not in self.activeDict:
                             self.activeDict[context] = {}
-                        self.activeDict[context][prefix.split('!')[0]] = time.mktime(time.gmtime())
+                        self.activeDict[context][Nick] = time.mktime(time.gmtime())
                         
                         # returns active users
                         if trail[0].lower() == '!active':
@@ -186,8 +199,11 @@ class IRCbot:
     
     def listActive(self,chan,minutes=10):
         activeList = []
+        validList = []
+        for i in range(len(self.info['USERNAMES'])):
+            validList.extend(list(self.info['USERNAMES'].values())[i])
         for key in self.activeDict[chan]:
-            if '\'%s\'' % key in str(list(self.info['USERNAMES'])) and key not in self.info['IGNORE'] and time.mktime(time.gmtime()) - self.activeDict[chan][key] <= minutes * 60:
+            if key in validList and key not in self.info['IGNORE'] and time.mktime(time.gmtime()) - self.activeDict[chan][key] <= minutes * 60:
                 activeList.append(key)
         return activeList
 
