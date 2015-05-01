@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import praw, socket, ssl, time
 
 __author__ = 'Brian W.'
@@ -53,98 +56,101 @@ class IRCbot:
 
     def main(self):
         while True:
-            buffr = self.irc.recv(4096).decode('UTF-8')
-            lines = str(buffr).split('\n')
-            for line in lines:
-                if len(line) < 1:
-                    continue
-                print (line)
-                if line[0] == ':':
-                    prefixEnd = line.find(' ')
-                    prefix = line[1:prefixEnd]
-                    if '!' in prefix and '@' in prefix:
-                        Nick = prefix.split('!')[0]
-                        Ident = prefix.split('!')[1].split('@')[0]
-                        Host = prefix.split('!')[1].split('@')[1]
+            try:
+                buffr = self.irc.recv(4096).decode('UTF-8')
+                lines = str(buffr).split('\n')
+                for line in lines:
+                    if len(line) < 1:
+                        continue
+                    print (line)
+                    if line[0] == ':':
+                        prefixEnd = line.find(' ')
+                        prefix = line[1:prefixEnd]
+                        if '!' in prefix and '@' in prefix:
+                            Nick = prefix.split('!')[0]
+                            Ident = prefix.split('!')[1].split('@')[0]
+                            Host = prefix.split('!')[1].split('@')[1]
+                        else:
+                            Nick = ''
+                            Ident = ''
+                            Host = ''
                     else:
-                        Nick = ''
-                        Ident = ''
-                        Host = ''
-                else:
-                    prefixEnd = -1
-                    prefix = ''
-                if ' :' in line:
-                    trailStart = line.find(' :')
-                    trail = line[trailStart + 2:].split()
-                else:
-                    trailStart = -1
-                    trail = []
-                prefixEnd += 1
-                cap = line[prefixEnd:trailStart].split()
-                if len(cap) > 0:
-                    command = cap[0]
-                if len(cap) > 1:
-                    parameters = cap[1:]
-                else:
-                    parameters = []
+                        prefixEnd = -1
+                        prefix = ''
+                    if ' :' in line:
+                        trailStart = line.find(' :')
+                        trail = line[trailStart + 2:].split()
+                    else:
+                        trailStart = -1
+                        trail = []
+                    prefixEnd += 1
+                    cap = line[prefixEnd:trailStart].split()
+                    if len(cap) > 0:
+                        command = cap[0]
+                    if len(cap) > 1:
+                        parameters = cap[1:]
+                    else:
+                        parameters = []
 
-                # reply to pings
-                if command == 'PING':
-                    self.ircSend('PONG :%s' % trail[0])
-                
-                # checks when identified with nickserv
-                if command == 'NOTICE' and Nick == 'NickServ':
-                    if len(trail) > 3:
-                        if 'registered' in trail[3]:
-                            self.ircSend('PRIVMSG NickServ :identify %s' % self.info['PASS'])
-                        if trail[3] == 'identified':
-                            self.joinChannel()
+                    # reply to pings
+                    if command == 'PING':
+                        self.ircSend('PONG :%s' % trail[0])
                     
-                # checks for INVITE received
-                if command == 'INVITE' and parameters[0] == self.info['NICK']:
-                    self.addChannel(trail[0])
-                    
-                # checks when PRIVMSG received
-                if command == 'PRIVMSG':
-                    # gets the current channel
-                    context = parameters [0]
-
-                    # builds last spoke list
-                    if context not in self.activeDict:
-                        self.activeDict[context] = {}
-                    self.activeDict[context][prefix.split('!')[0]] = time.mktime(time.gmtime())
-                    
-                    # returns active users
-                    if trail[0] == '!active':
-                        self.ircSend('PRIVMSG %s :%s' % (context, len(self.listActive(context))))
+                    # checks when identified with nickserv
+                    if command == 'NOTICE' and Nick == 'NickServ':
+                        if len(trail) > 3:
+                            if 'registered' in trail[3]:
+                                self.ircSend('PRIVMSG NickServ :identify %s' % self.info['PASS'])
+                            if trail[3] == 'identified':
+                                self.joinChannel()
                         
-                    # adds users to ignore list (ie: bots)
-                    elif trail[0] == '!addignore':
-                        if Host in self.info['SUDOER']:
-                            self.info['IGNORE'] = self.info['IGNORE']+','+','.join(trail[1:])
-                            self.updateFile()
+                    # checks for INVITE received
+                    if command == 'INVITE' and parameters[0] == self.info['NICK']:
+                        self.addChannel(trail[0])
+                        
+                    # checks when PRIVMSG received
+                    if command == 'PRIVMSG':
+                        # gets the current channel
+                        context = parameters [0]
+
+                        # builds last spoke list
+                        if context not in self.activeDict:
+                            self.activeDict[context] = {}
+                        self.activeDict[context][prefix.split('!')[0]] = time.mktime(time.gmtime())
+                        
+                        # returns active users
+                        if trail[0] == '!active':
+                            self.ircSend('PRIVMSG %s :%s' % (context, len(self.listActive(context))))
                             
-                    # adds users to sudoer list (ie: bots)
-                    elif trail[0] == '!addadmin':
-                        if Host in self.info['SUDOER']:
-                            self.info['SUDOER'] = self.info['SUDOER']+','+','.join(trail[1:])
-                            self.updateFile()
+                        # adds users to ignore list (ie: bots)
+                        elif trail[0] == '!addignore':
+                            if Host in self.info['SUDOER']:
+                                self.info['IGNORE'] = self.info['IGNORE']+','+','.join(trail[1:])
+                                self.updateFile()
+                                
+                        # adds users to sudoer list (ie: bots)
+                        elif trail[0] == '!addadmin':
+                            if Host in self.info['SUDOER']:
+                                self.info['SUDOER'] = self.info['SUDOER']+','+','.join(trail[1:])
+                                self.updateFile()
 
-                    # executes command
-                    elif trail[0] == '!nwodo':
-                        if Host in self.info['SUDOER']:
-                            self.ircSend(' '.join(trail[1:]))
+                        # executes command
+                        elif trail[0] == '!nwodo':
+                            if Host in self.info['SUDOER']:
+                                self.ircSend(' '.join(trail[1:]))
 
-                    # checks for reddit command
-                    elif trail[0] == '!reddit':
-                        if time.mktime(time.gmtime()) - IRCbot.redditLimit > 2:
-                            try:
-                                subreddit = trail[1]
-                                submission = IRCbot.r.get_subreddit(subreddit).get_random_submission()
-                                self.ircSend('PRIVMSG %s :%s - %s' % (context, submission.title, submission.url))
-                            except:
-                                pass
-                            IRCbot.redditLimit = time.mktime(time.gmtime())              
+                        # checks for reddit command
+                        elif trail[0] == '!reddit':
+                            if time.mktime(time.gmtime()) - IRCbot.redditLimit > 2:
+                                try:
+                                    subreddit = trail[1]
+                                    submission = IRCbot.r.get_subreddit(subreddit).get_random_submission()
+                                    self.ircSend('PRIVMSG %s :%s - %s' % (context, submission.title, submission.url))
+                                except:
+                                    pass
+                                IRCbot.redditLimit = time.mktime(time.gmtime())     
+            except Exception as e:
+                print(e)
     
     def addChannel(self,channel):
         self.info['CHAN'] = str(self.info['CHAN'])+','+channel
