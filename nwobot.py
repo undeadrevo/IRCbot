@@ -20,6 +20,7 @@ class setupBot:
                 self.newinfo['IGNORE'] = input("Enter the nicks that the bot should ignore (comma separated): ")
                 self.newinfo['OWNER'] = input("Enter the hosts of the owner(s) (comma separated): ")
                 self.newinfo['SUDOER'] = input("Enter the hosts to receive extra privileges (comma separated): ")
+                self.newinfo['USERNAMES'] = {}
                 print("\n%s" % self.newinfo)
                 confirm = input("\n Confirm? y/N: ")
                 if 'Y' in confirm or 'y' in confirm:
@@ -42,7 +43,7 @@ class IRCbot:
             self.info = eval(f)
         self.activeDict = {}
         for channel in self.info['CHAN'].split(','):
-            self.activeDict[channel] = {} 
+            self.activeDict[channel] = {}
         self.connect()
         
     def connect(self):
@@ -72,7 +73,7 @@ class IRCbot:
                     else:
                         prefix = ''
                     command = words.pop(0)
-                    for i in range(len(words) - 1):
+                    for i in range(len(words)):
                         if words[0][0] == ':':
                             break
                         parameters.append(words.pop(0))
@@ -86,11 +87,6 @@ class IRCbot:
                         Nick = ''
                         Ident = ''
                         Host = ''
-                            
-                    print(prefix)
-                    print(command)
-                    print(parameters)
-                    print(trail)
 
                     # reply to pings
                     if command == 'PING':
@@ -107,6 +103,17 @@ class IRCbot:
                     # checks for INVITE received
                     if command == 'INVITE' and parameters[0] == self.info['NICK']:
                         self.addChannel(trail[0])
+
+                    # adds users to username list
+                    if str(command) == '353':
+                        self.ircSend('WHO {0} %an'.format(parameters[2]))
+                                
+                    if str(command) == '354':
+                        if parameters[2] not in self.info['USERNAMES']:
+                            self.info['USERNAMES'][parameters[2]] = []
+                        if parameters[1] not in self.info['USERNAMES'][parameters[2]]:
+                            self.info['USERNAMES'][parameters[2]].append(parameters[1])
+                        self.updateFile()
                         
                     # checks when PRIVMSG received
                     if command == 'PRIVMSG':
@@ -180,7 +187,7 @@ class IRCbot:
     def listActive(self,chan,minutes=10):
         activeList = []
         for key in self.activeDict[chan]:
-            if key not in self.info['IGNORE'] and time.mktime(time.gmtime()) - self.activeDict[chan][key] <= minutes * 60:
+            if '\'%s\'' % key in str(list(self.info['USERNAMES'])) and key not in self.info['IGNORE'] and time.mktime(time.gmtime()) - self.activeDict[chan][key] <= minutes * 60:
                 activeList.append(key)
         return activeList
 
