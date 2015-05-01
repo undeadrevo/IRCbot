@@ -18,6 +18,7 @@ class setupBot:
                 self.newinfo['NAME'] = input("Enter the realname that the bot should have: ")
                 self.newinfo['CHAN'] = input("Enter the channels that the bot should join (comma separated): ")
                 self.newinfo['IGNORE'] = input("Enter the nicks that the bot should ignore (comma separated): ")
+                self.newinfo['OWNER'] = input("Enter the hosts of the owner(s) (comma separated): ")
                 self.newinfo['SUDOER'] = input("Enter the hosts to receive extra privileges (comma separated): ")
                 print("\n%s" % self.newinfo)
                 confirm = input("\n Confirm? y/N: ")
@@ -119,24 +120,25 @@ class IRCbot:
                         self.activeDict[context][prefix.split('!')[0]] = time.mktime(time.gmtime())
                         
                         # returns active users
-                        if trail[0] == '!active':
-                            self.ircSend('PRIVMSG %s :%s' % (context, len(self.listActive(context))))
+                        if trail[0].lower() == '!active':
+                            self.ircSend('PRIVMSG %s :There are %s user(s) in here' % (context, len(self.listActive(context))))
+                            
+                        # adds channels to autojoin list and joins them
+                        elif trail[0].lower() == '!channel' and len(trail) > 2:
+                            self.addRemoveList(Host,trail[1].lower,trail[2:],'CHAN')
+                            self.joinChannel()
                             
                         # adds users to ignore list (ie: bots)
-                        elif trail[0] == '!addignore':
-                            if Host in self.info['SUDOER']:
-                                self.info['IGNORE'] = self.info['IGNORE']+','+','.join(trail[1:])
-                                self.updateFile()
+                        elif trail[0].lower() == '!ignore' and len(trail) > 2:
+                            self.addRemoveList(Host,trail[1].lower,trail[2:],'IGNORE')
                                 
-                        # adds users to sudoer list (ie: bots)
-                        elif trail[0] == '!addadmin':
-                            if Host in self.info['SUDOER']:
-                                self.info['SUDOER'] = self.info['SUDOER']+','+','.join(trail[1:])
-                                self.updateFile()
+                        # adds users to sudoer list (ie: admins)
+                        elif trail[0].lower() == '!admin' and len(trail) > 2:
+                            self.addRemoveList(Host,trail[1].lower,trail[2:],'SUDOER')
 
                         # executes command
                         elif trail[0] == '!nwodo':
-                            if Host in self.info['SUDOER']:
+                            if Host in self.info['SUDOER'].split(',') or Host in self.info['OWNER'].split(','):
                                 self.ircSend(' '.join(trail[1:]))
 
                         # checks for reddit command
@@ -151,9 +153,24 @@ class IRCbot:
                                 IRCbot.redditLimit = time.mktime(time.gmtime())     
             except Exception as e:
                 print(e)
+                
+    def addRemoveList(self,issuer,command,additem,addcat):
+        if issuer in self.info['SUDOER'].split(',') or issuer in self.info['OWNER'].split(','):
+            if command == 'add':
+                for item in additem:
+                    if item not in self.info[addcat].split(','):
+                        self.info[addcat] = self.info[addcat]+','+item
+            elif command == 'remove':
+                for item in additem:
+                    if user in self.info[addcat].split(','):
+                        updatedList = self.info[addcat].split(',')
+                        updatedList.remove(item)
+                        self.info[addcat] = ','.join(updatedList)
+            self.updateFile()
     
     def addChannel(self,channel):
-        self.info['CHAN'] = str(self.info['CHAN'])+','+channel
+        if channel not in self.info['CHAN'].split(','):
+            self.info['CHAN'] = str(self.info['CHAN'])+','+channel
         self.updateFile()
         self.joinChannel()
         
