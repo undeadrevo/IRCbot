@@ -64,34 +64,33 @@ class IRCbot:
                     if len(line) < 1:
                         continue
                     print (line)
+                    words = str(line).split()
+                    trail = []
+                    parameters = []
                     if line[0] == ':':
-                        prefixEnd = line.find(' ')
-                        prefix = line[1:prefixEnd]
-                        if '!' in prefix and '@' in prefix:
-                            Nick = prefix.split('!')[0]
-                            Ident = prefix.split('!')[1].split('@')[0]
-                            Host = prefix.split('!')[1].split('@')[1]
-                        else:
-                            Nick = ''
-                            Ident = ''
-                            Host = ''
+                        prefix = words.pop(0)[1:]
                     else:
-                        prefixEnd = -1
                         prefix = ''
-                    if ' :' in line:
-                        trailStart = line.find(' :')
-                        trail = line[trailStart + 2:].split()
+                    command = words.pop(0)
+                    for i in range(len(words) - 1):
+                        if words[0][0] == ':':
+                            break
+                        parameters.append(words.pop(0))
+                    trail = ' '.join(words)[1:].split()
+                    
+                    if '!' in prefix and '@' in prefix:
+                        Nick = prefix.split('!')[0]
+                        Ident = prefix.split('!')[1].split('@')[0]
+                        Host = prefix.split('@')[1]
                     else:
-                        trailStart = -1
-                        trail = []
-                    prefixEnd += 1
-                    cap = line[prefixEnd:trailStart].split()
-                    if len(cap) > 0:
-                        command = cap[0]
-                    if len(cap) > 1:
-                        parameters = cap[1:]
-                    else:
-                        parameters = []
+                        Nick = ''
+                        Ident = ''
+                        Host = ''
+                            
+                    print(prefix)
+                    print(command)
+                    print(parameters)
+                    print(trail)
 
                     # reply to pings
                     if command == 'PING':
