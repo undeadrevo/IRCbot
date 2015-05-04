@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import praw, socket, ssl, time
+import praw, requests, socket, ssl, time
 
 # Author = Brian W.
 
@@ -66,12 +66,11 @@ class IRCbot:
                 print (line)
                 curTime = time.mktime(time.gmtime())
                 words = str(line).split()
+                prefix = ''
                 trail = []
                 parameters = []
                 if line[0] == ':':
                     prefix = words.pop(0)[1:]
-                else:
-                    prefix = ''
                 if len(words) > 0:
                     command = words.pop(0)
                 for i in range(len(words)):
@@ -164,7 +163,7 @@ class IRCbot:
                             self.ircSend(' '.join(trail[1:]))
 
                     # checks for reddit command
-                    elif trail[0] == '!reddit':
+                    elif trail[0] == '!reddit' and len(trail) > 1:
                         if curTime - IRCbot.redditLimit > 2:
                             try:
                                 subreddit = trail[1]
@@ -179,6 +178,20 @@ class IRCbot:
                             IRCbot.redditLimit = time.mktime(time.gmtime())
                         else:
                             self.ircSend('NOTICE %s :Please wait %s second(s) (reddit API restrictions)' % (Nick, str(2 - (curTime - IRCbot.redditLimit))))
+                    
+                    # checks for urban dictionary command
+                    elif trail[0] == '!ud' and len(trail) > 1:
+                        try:
+                            r = requests.get(r'http://api.urbandictionary.com/v0/define?term=%s' % '+'.join(trail[1:]))
+                            data = r.json()
+                            definition = ' '.join(data['list'][0]['definition'].splitlines())
+                            truncated = ''
+                            if len(definition) >= 100:
+                                truncated = '...'
+                                definition = definition[:97]
+                            self.ircSend('PRIVMSG %s :12[%s] 06%s%s - 10%s' % (context, ' '.join(trail[1:]), definition[:100], truncated, data['list'][0]['permalink']))
+                        except Exception as e:
+                            print(e)
                 
     def addRemoveList(self,issuer,command,additem,addcat):
         if issuer in self.info['SUDOER'].split(',') or issuer in self.info['OWNER'].split(','):
@@ -219,5 +232,5 @@ class IRCbot:
         print(msg)
         self.irc.send(bytes(str(msg)+'\r\n', 'UTF-8'))
 
-setupBot()
+#setupBot()
 IRCbot()
