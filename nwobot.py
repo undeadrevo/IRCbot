@@ -87,7 +87,6 @@ class IRCbot:
                             break
                         parameters.append(words.pop(0))
                     trail = ' '.join(words)[1:].split()
-
                     Nick = ''
                     Ident = ''
                     Host = ''
@@ -176,21 +175,36 @@ class IRCbot:
 
                         # adds channels to autojoin list and joins them
                         elif trail[0].lower() == '!channel' and len(trail) > 2:
-                            self.addRemoveList(Host,trail[1].lower,trail[2:],'CHAN')
+                            self.addRemoveList(Host,trail[1].lower(),trail[2:],'CHAN')
                             self.joinChannel()
 
                         # adds users to ignore list (ie: bots)
                         elif trail[0].lower() == '!ignore' and len(trail) > 2:
-                            self.addRemoveList(Host,trail[1].lower,trail[2:],'IGNORE')
+                            self.addRemoveList(Host,trail[1].lower(),trail[2:],'IGNORE')
 
                         # adds users to sudoer list (ie: admins)
                         elif trail[0].lower() == '!admin' and len(trail) > 2:
-                            self.addRemoveList(Host,trail[1].lower,trail[2:],'SUDOER')
+                            self.addRemoveList(Host,trail[1].lower(),trail[2:],'SUDOER')
 
                         # executes command
                         elif trail[0] == '!nwodo':
                             if Host in self.info['SUDOER'].split(',') or Host in self.info['OWNER'].split(','):
                                 self.ircSend(' '.join(trail[1:]))
+                                
+                        # soaker!
+                        if Nick == 'Doger' and len(trail) > 6:
+                            if trail[0] == 'Such' and trail[6].strip('!') == self.info['NICK']:
+                                initAmount = int(trail[4][1:])
+                                activeUser = self.listActive(context)
+                                tipAmount = initAmount // len(activeUser)
+                                if tipAmount >= 10:
+                                    self.ircSend('PRIVMSG Doger :mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
+                                    self.ircSend('PRIVMSG %s :%s is tipping %s shibes with Ɖ%s: %s' % (context, trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
+                                else:
+                                    self.ircSend('PRIVMSG Doger :mtip %s %s' % (trail[1], initAmount))
+                                    self.ircSend('PRIVMSG %s :Sorry %s, not enough to go around. Returning tip.' % trail[1])
+                                    
+                                                 
 
                         # checks for reddit command
                         if trail[0] == '!reddit' and len(trail) > 1:
@@ -254,7 +268,7 @@ class IRCbot:
         if issuer in self.info['SUDOER'].split(',') or issuer in self.info['OWNER'].split(','):
             if command == 'add':
                 for item in additem:
-                    if item not in self.info[addcat].split(','):
+                    if item not in self.info[addcat]:
                         self.info[addcat] = self.info[addcat]+','+item
             elif command == 'remove':
                 for item in additem:
