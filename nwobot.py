@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import praw, requests, socket, ssl, time
+from operator import itemgetter
+import base64, praw, requests, socket, ssl, time
 
 # Author = Brian W.
 
@@ -20,13 +21,15 @@ class setupBot:
                 self.newinfo['IGNORE'] = input("Enter the nicks that the bot should ignore (comma separated): ")
                 self.newinfo['OWNER'] = input("Enter the hosts of the owner(s) (comma separated): ")
                 self.newinfo['SUDOER'] = input("Enter the hosts to receive extra privileges (comma separated): ")
-                self.newinfo['USERNAMES'] = {}
                 print("\n%s" % self.newinfo)
                 confirm = input("\n Confirm? y/N: ")
                 if 'Y' in confirm or 'y' in confirm:
                     break
             with open('nwobot.conf', 'w+') as file:
                 file.write(str(self.newinfo))
+            with open('users.txt', 'w+') as file:
+                self.userlist = {}
+                file.write(str(self.userlist))
 
 class IRCbot:
     # Reddit API
@@ -41,7 +44,11 @@ class IRCbot:
         with open('nwobot.conf', 'r') as file:
             f = file.read()
             self.info = eval(f)
+        with open('users.txt', 'r') as file:
+            f = file.read()
+            self.userDict = eval(f)
         self.activeDict = {}
+        self.allUserList = []
         for channel in self.info['CHAN'].split(','):
             self.activeDict[channel] = {}
         self.connect()
@@ -49,6 +56,7 @@ class IRCbot:
     def connect(self):
         self.socket.connect((self.info['HOST'], int(self.info['PORT'])))
         self.irc = ssl.wrap_socket(self.socket)
+        self.ircSend('CAP LS')
         self.ircSend('NICK %s' % self.info['NICK'])
         self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
         self.main()
@@ -58,140 +66,189 @@ class IRCbot:
 
     def main(self):
         while True:
-            buffr = self.irc.recv(4096).decode('UTF-8')
-            lines = str(buffr).split('\n')
-            for line in lines:
-                if len(line) < 1:
-                    continue
-                print (line)
-                curTime = time.mktime(time.gmtime())
-                words = str(line).split()
-                prefix = ''
-                trail = []
-                parameters = []
-                if line[0] == ':':
-                    prefix = words.pop(0)[1:]
-                if len(words) > 0:
-                    command = words.pop(0)
-                for i in range(len(words)):
-                    if words[0][0] == ':':
-                        break
-                    parameters.append(words.pop(0))
-                trail = ' '.join(words)[1:].split()
+            try:
+                buffr = self.irc.recv(4096).decode('utf-8')
+                lines = str(buffr).split('\n')
+                for line in lines:
+                    if len(line) < 1:
+                        continue
+                    print (line)
+                    curTime = time.mktime(time.gmtime())
+                    words = str(line).split()
+                    prefix = ''
+                    trail = []
+                    parameters = []
+                    if line[0] == ':':
+                        prefix = words.pop(0)[1:]
+                    if len(words) > 0:
+                        command = words.pop(0)
+                    for i in range(len(words)):
+                        if words[0][0] == ':':
+                            break
+                        parameters.append(words.pop(0))
+                    trail = ' '.join(words)[1:].split()
 
-                if '!' in prefix and '@' in prefix:
-                    Nick = prefix.split('!')[0]
-                    Ident = prefix.split('!')[1].split('@')[0]
-                    Host = prefix.split('@')[1]
-                else:
                     Nick = ''
                     Ident = ''
                     Host = ''
+                    if '!' in prefix and '@' in prefix:
+                        Nick = prefix.split('!')[0]
+                        Ident = prefix.split('!')[1].split('@')[0]
+                        Host = prefix.split('@')[1]
+                    
+                    # CAP
+                    if command == 'CAP' and parameters [0] == '*' and parameters[1] == 'LS':
+                        self.ircSend('CAP REQ :%s' % ' '.join(trail))
+                    if command == 'CAP' and parameters [1] == 'ACK':
+                        self.ircSend('AUTHENTICATE PLAIN')
+                    if command == 'AUTHENTICATE' and parameters[0] == '+':
+                        sasl_token = '\0'.join((self.info['NICK'], self.info['NICK'], self.info['PASS']))
+                        self.ircSend('AUTHENTICATE %s' % base64.b64encode(sasl_token.encode('utf-8')).decode('utf-8'))
+                    if command == '903':
+                        self.ircSend('CAP END')
+                        self.joinChannel()
+                        
+                    # reply to pings
+                    if command == 'PING':
+                        self.ircSend('PONG :%s' % trail[0])
 
-                # reply to pings
-                if command == 'PING':
-                    self.ircSend('PONG :%s' % trail[0])
+                    # checks when identified with nickserv
+                    if command == 'NOTICE' and Nick == 'NickServ':
+                        if len(trail) > 3:
+                            if 'registered' in trail[3]:
+                                self.ircSend('PRIVMSG NickServ :identify %s' % self.info['PASS'])
+                            if trail[3] == 'identified':
+                                self.joinChannel()
 
-                # checks when identified with nickserv
-                if command == 'NOTICE' and Nick == 'NickServ':
-                    if len(trail) > 3:
-                        if 'registered' in trail[3]:
-                            self.ircSend('PRIVMSG NickServ :identify %s' % self.info['PASS'])
-                        if trail[3] == 'identified':
-                            self.joinChannel()
+                    # checks for INVITE received
+                    if command == 'INVITE' and parameters[0] == self.info['NICK']:
+                        self.addChannel(trail[0])
 
-                # checks for INVITE received
-                if command == 'INVITE' and parameters[0] == self.info['NICK']:
-                    self.addChannel(trail[0])
+                    # checks nick change
+                    if command == 'NICK':
+                        if Nick == self.info['NICK']:
+                            self.info['NICK'] = trail[0]
+                        else:
+                            self.ircSend('WHOIS %s' % Nick)
 
-                # parses WHOIS result
-                if str(command) == '330':
-                    if len(parameters) > 2:
-                        if parameters[2] not in self.info['USERNAMES']:
-                            self.info['USERNAMES'][parameters[2]] = []
-                        if parameters[1] not in self.info['USERNAMES'][parameters[2]]:
-                            self.info['USERNAMES'][parameters[2]].append(parameters[1])
+                    # parses WHOIS result
+                    if str(command) == '330' and len(parameters) > 2:
+                        if parameters[2] not in self.userDict:
+                            self.userDict[parameters[2]] = []
+                        if parameters[1] not in self.userDict[parameters[2]]:
+                            self.userDict[parameters[2]].append(parameters[1])
                         self.updateFile()
 
-                # updates active list if user leaves
-                if command == 'PART':
-                    if Nick in self.activeDict[parameters[0]]:
-                        self.activeDict[parameters[0]].pop(Nick, None)
-                if command == 'QUIT':
-                    for channels in self.info['CHAN'].split(','):
-                        if Nick in self.activeDict[channels]:
-                            self.activeDict[channels].pop(Nick, None)
+                    # updates active list if user leaves
+                    if command == 'PART':
+                        if Nick in self.activeDict[parameters[0]]:
+                            del self.activeDict[parameters[0]][Nick]
+                    if command == 'QUIT':
+                        for channels in self.info['CHAN'].split(','):
+                            if Nick in self.activeDict[channels]:
+                                del self.activeDict[channels][Nick]
 
-                # checks when PRIVMSG received
-                if command == 'PRIVMSG':
-                    # gets the current channel
-                    context = parameters [0]
+                    # checks when PRIVMSG received
+                    if command == 'PRIVMSG':
+                        if len(trail) > 0:
+                            trail[0] = trail[0].strip('+')
+                            
+                        # gets the current channel
+                        context = parameters [0]
 
-                    # builds last spoke list
-                    if context not in self.activeDict:
-                        self.activeDict[context] = {}
-                    self.activeDict[context][Nick] = curTime
-                    validList = []
-                    for i in range(len(self.info['USERNAMES'])):
-                        validList.extend(list(self.info['USERNAMES'].values())[i])
-                    if Nick not in validList:
-                        self.ircSend('WHOIS %s' % Nick)
+                        # builds last spoke list
+                        if context not in self.activeDict:
+                            self.activeDict[context] = {}
+                        self.activeDict[context][Nick] = curTime
+                        validList = []
+                        for unicks in self.userDict.values():
+                            validList.extend(unicks)
+                        if Nick not in validList and Nick not in self.allUserList:
+                            self.ircSend('WHOIS %s' % Nick)
+                            self.allUserList.append(Nick)
 
-                    # returns active users
-                    if trail[0].lower() == '!active':
-                        if len(self.listActive(context)) == 1:
-                            self.ircSend('PRIVMSG %s :There is 1 active user here (only users identified with NickServ are included)')
-                        else:
-                            self.ircSend('PRIVMSG %s :There are %s users in here' % (context, len(self.listActive(context))))
+                        # returns active users
+                        if trail[0].lower() == '!active':
+                            if len(self.listActive(context)) == 1:
+                                self.ircSend('PRIVMSG %s :There is 1 active user here (only users identified with NickServ are included)' % context)
+                            else:
+                                self.ircSend('PRIVMSG %s :There are %s active users in here (only users identified with NickServ are included)' % (context, len(self.listActive(context))))
 
-                    # adds channels to autojoin list and joins them
-                    elif trail[0].lower() == '!channel' and len(trail) > 2:
-                        self.addRemoveList(Host,trail[1].lower,trail[2:],'CHAN')
-                        self.joinChannel()
+                        # adds channels to autojoin list and joins them
+                        elif trail[0].lower() == '!channel' and len(trail) > 2:
+                            self.addRemoveList(Host,trail[1].lower,trail[2:],'CHAN')
+                            self.joinChannel()
 
-                    # adds users to ignore list (ie: bots)
-                    elif trail[0].lower() == '!ignore' and len(trail) > 2:
-                        self.addRemoveList(Host,trail[1].lower,trail[2:],'IGNORE')
+                        # adds users to ignore list (ie: bots)
+                        elif trail[0].lower() == '!ignore' and len(trail) > 2:
+                            self.addRemoveList(Host,trail[1].lower,trail[2:],'IGNORE')
 
-                    # adds users to sudoer list (ie: admins)
-                    elif trail[0].lower() == '!admin' and len(trail) > 2:
-                        self.addRemoveList(Host,trail[1].lower,trail[2:],'SUDOER')
+                        # adds users to sudoer list (ie: admins)
+                        elif trail[0].lower() == '!admin' and len(trail) > 2:
+                            self.addRemoveList(Host,trail[1].lower,trail[2:],'SUDOER')
 
-                    # executes command
-                    elif trail[0] == '!nwodo':
-                        if Host in self.info['SUDOER'].split(',') or Host in self.info['OWNER'].split(','):
-                            self.ircSend(' '.join(trail[1:]))
+                        # executes command
+                        elif trail[0] == '!nwodo':
+                            if Host in self.info['SUDOER'].split(',') or Host in self.info['OWNER'].split(','):
+                                self.ircSend(' '.join(trail[1:]))
 
-                    # checks for reddit command
-                    elif trail[0] == '!reddit' and len(trail) > 1:
-                        if curTime - IRCbot.redditLimit > 2:
+                        # checks for reddit command
+                        if trail[0] == '!reddit' and len(trail) > 1:
+                            if curTime - IRCbot.redditLimit > 2:
+                                try:
+                                    subreddit = trail[1]
+                                    submission = IRCbot.r.get_subreddit(subreddit).get_random_submission()
+                                    if submission.over_18:
+                                        nsfwstatus = '[NSFW]'
+                                    else:
+                                        nsfwstatus = ''
+                                    self.ircSend('PRIVMSG %s :04%s07[r/%s] 10%s - 14%s' % (context, nsfwstatus, subreddit, submission.title, submission.url))
+                                except:
+                                    pass
+                                IRCbot.redditLimit = time.mktime(time.gmtime())
+                            else:
+                                self.ircSend('NOTICE %s :Please wait %s second(s) (reddit API restrictions)' % (Nick, str(2 - (curTime - IRCbot.redditLimit))))
+
+                        # checks for urban dictionary command
+                        elif trail[0] == '!ud' and len(trail) > 1:
                             try:
-                                subreddit = trail[1]
-                                submission = IRCbot.r.get_subreddit(subreddit).get_random_submission()
-                                if submission.over_18:
-                                    nsfwstatus = '[NSFW]'
-                                else:
-                                    nsfwstatus = ''
-                                self.ircSend('PRIVMSG %s :04%s07[r/%s] 10%s - 14%s' % (context, nsfwstatus, subreddit, submission.title, submission.url))
-                            except:
-                                pass
-                            IRCbot.redditLimit = time.mktime(time.gmtime())
-                        else:
-                            self.ircSend('NOTICE %s :Please wait %s second(s) (reddit API restrictions)' % (Nick, str(2 - (curTime - IRCbot.redditLimit))))
-                    
-                    # checks for urban dictionary command
-                    elif trail[0] == '!ud' and len(trail) > 1:
-                        try:
-                            r = requests.get(r'http://api.urbandictionary.com/v0/define?term=%s' % '+'.join(trail[1:]))
-                            data = r.json()
-                            definition = ' '.join(data['list'][0]['definition'].splitlines())
-                            truncated = ''
-                            if len(definition) >= 100:
-                                truncated = '...'
-                                definition = definition[:97]
-                            self.ircSend('PRIVMSG %s :12[%s] 06%s%s - 10%s' % (context, ' '.join(trail[1:]), definition[:100], truncated, data['list'][0]['permalink']))
-                        except Exception as e:
-                            print(e)
+                                r = requests.get(r'http://api.urbandictionary.com/v0/define?term=%s' % '+'.join(trail[1:]))
+                                data = r.json()
+                                definition = ' '.join(data['list'][0]['definition'].splitlines())
+                                truncated = ''
+                                if len(definition) >= 100:
+                                    truncated = '...'
+                                    definition = definition[:97]
+                                self.ircSend('PRIVMSG %s :12[%s] 06%s%s - 10%s' % (context, ' '.join(trail[1:]), definition[:100], truncated, data['list'][0]['permalink']))
+                            except Exception as e:
+                                print(e)
+
+                        # fetches Youtube video info
+                        if 'www.youtu.be' in line or 'www.youtube.com' in line:
+                            for w in trail:
+                                if 'www.youtu.be/' in w:
+                                    vidID = w.split('www.youtu.be/')[1]
+                                    break
+                                elif 'www.youtube.com/watch?v=' in w:
+                                    vidID = w.split('www.youtube.com/watch?v=')[1]
+                                    break
+                                elif 'www.youtube.com/v/' in w:
+                                    vidID = w.split('www.youtube.com/v/')[1]
+                                    break
+                            vidID = vidID.split('#')[0].split('&')[0]
+                            try:
+                                r = requests.get(r'https://gdata.youtube.com/feeds/api/videos/%s?v=2&alt=json' % vidID)
+                                data = r.json()
+                                likes = int(data['entry']['yt$rating']['numLikes'])
+                                dislikes = int(data['entry']['yt$rating']['numDislikes'])
+                                votes = likes + dislikes
+                                bar = '12' + str(likes) + ' ' + '—' * round(likes*10/votes) + '15' + '—' * round(dislikes*10/votes) + ' ' + str(dislikes)
+                                ytInfo = '%s 14uploaded by %s  %s' % (data['entry']['title']['$t'], data['entry']['author'][0]['name']['$t'], bar)
+                                self.ircSend('PRIVMSG %s :01,00You00,04Tube %s' % (context, ytInfo))
+                            except Exception as e:
+                                print(e)
+            except Exception as e:
+                print(e)
                 
     def addRemoveList(self,issuer,command,additem,addcat):
         if issuer in self.info['SUDOER'].split(',') or issuer in self.info['OWNER'].split(','):
@@ -216,15 +273,25 @@ class IRCbot:
     def updateFile(self):
         with open('nwobot.conf', 'w+') as file:
             file.write(str(self.info))
+        with open('users.txt', 'w+') as file:
+            file.write(str(self.userDict))
     
     def listActive(self,chan,minutes=10):
         activeList = []
         validList = []
         curTime = time.mktime(time.gmtime())
-        for i in range(len(self.info['USERNAMES'])):
-            validList.extend(list(self.info['USERNAMES'].values())[i])
-        for key in self.activeDict[chan]:
-            if key in validList and key not in self.info['IGNORE'] and curTime - self.activeDict[chan][key] <= minutes * 60:
+        userDict = list(self.userDict)
+        mostRecent = list(dict(sorted(self.activeDict[chan].items(), key=itemgetter(1), reverse=True)).keys())
+        for rnick in mostRecent:
+            for group in userDict:
+                nickList = self.userDict[group]
+                for unick in nickList:
+                    if rnick == unick:
+                        validList.append(rnick)
+                        userDict.remove(group)
+                        break
+        for key in validList:
+            if key not in self.info['IGNORE'] and curTime - self.activeDict[chan][key] <= minutes * 60:
                 activeList.append(key)
         return activeList
 
