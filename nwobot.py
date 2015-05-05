@@ -49,7 +49,7 @@ class IRCbot:
             self.userDict = eval(f)
         if input('Use SASL?(Y/n) ').lower() == 'y':
             self.SASL = True
-        else
+        else:
             self.SASL = False
         self.activeDict = {}
         self.allUserList = []
