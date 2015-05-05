@@ -47,6 +47,10 @@ class IRCbot:
         with open('users.txt', 'r') as file:
             f = file.read()
             self.userDict = eval(f)
+        if input('Use SASL?(Y/n) ').lower() == 'y':
+            self.SASL = True
+        else
+            self.SASL = False
         self.activeDict = {}
         self.allUserList = []
         for channel in self.info['CHAN'].split(','):
@@ -95,17 +99,18 @@ class IRCbot:
                         Ident = prefix.split('!')[1].split('@')[0]
                         Host = prefix.split('@')[1]
                     
-                    # CAP
-                    if command == 'CAP' and parameters [0] == '*' and parameters[1] == 'LS':
-                        self.ircSend('CAP REQ :%s' % ' '.join(trail))
-                    if command == 'CAP' and parameters [1] == 'ACK':
-                        self.ircSend('AUTHENTICATE PLAIN')
-                    if command == 'AUTHENTICATE' and parameters[0] == '+':
-                        sasl_token = '\0'.join((self.info['NICK'], self.info['NICK'], self.info['PASS']))
-                        self.ircSend('AUTHENTICATE %s' % base64.b64encode(sasl_token.encode('utf-8')).decode('utf-8'))
-                    if command == '903':
-                        self.ircSend('CAP END')
-                        self.joinChannel()
+                    # SASL
+                    if self.SASL:
+                        if command == 'CAP' and parameters [0] == '*' and parameters[1] == 'LS':
+                            self.ircSend('CAP REQ :%s' % ' '.join(trail))
+                        if command == 'CAP' and parameters [1] == 'ACK':
+                            self.ircSend('AUTHENTICATE PLAIN')
+                        if command == 'AUTHENTICATE' and parameters[0] == '+':
+                            sasl_token = '\0'.join((self.info['NICK'], self.info['NICK'], self.info['PASS']))
+                            self.ircSend('AUTHENTICATE %s' % base64.b64encode(sasl_token.encode('utf-8')).decode('utf-8'))
+                        if command == '903':
+                            self.ircSend('CAP END')
+                            self.joinChannel()
                         
                     # reply to pings
                     if command == 'PING':
