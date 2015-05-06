@@ -285,7 +285,8 @@ class IRCbot:
                             site = requests.get(url)
                             tree = html.fromstring(site.text)
                             title = tree.xpath('/html/head/title/text()')
-                            self.ircSend('PRIVMSG %s :03%s 09(%s)' % (context, title, url))
+                            if title:
+                                self.ircSend('PRIVMSG %s :03%s 09(%s)' % (context, title, url))
                                 
             except Exception as e:
                 print(e)
