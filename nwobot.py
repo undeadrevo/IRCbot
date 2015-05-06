@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from lxml import html
 from operator import itemgetter
 import base64, praw, requests, socket, ssl, time
 
@@ -15,6 +16,7 @@ class setupBot:
                 self.newinfo['HOST'] = input("\nEnter the IRC server that the bot should join: ")
                 self.newinfo['PORT'] = input("Enter the port that the bot should connect with: ")
                 self.newinfo['NICK'] = input("Enter the nickname that the bot should use: ")
+                self.newinfo['SASL'] = input("Do you to authenticate using SASL? (y/N): ")
                 self.newinfo['PASS'] = input("Enter the password that the bot will authenticate with (if applicable): ")
                 self.newinfo['NAME'] = input("Enter the realname that the bot should have: ")
                 self.newinfo['CHAN'] = input("Enter the channels that the bot should join (comma separated): ")
@@ -47,7 +49,7 @@ class IRCbot:
         with open('users.txt', 'r') as file:
             f = file.read()
             self.userDict = eval(f)
-        if input('Use SASL?(Y/n) ').lower() == 'y':
+        if self.info['SASL'].lower() == 'y':
             self.SASL = True
         else:
             self.SASL = False
@@ -90,7 +92,7 @@ class IRCbot:
                         if words[0][0] == ':':
                             break
                         parameters.append(words.pop(0))
-                    trail = ' '.join(words)[1:].split()
+                    trail = ' '.join(words)[1:].lstrip('+-').split()
                     Nick = ''
                     Ident = ''
                     Host = ''
@@ -154,8 +156,6 @@ class IRCbot:
 
                     # checks when PRIVMSG received
                     if command == 'PRIVMSG':
-                        if len(trail) > 0:
-                            trail[0] = trail[0].strip('+')
                             
                         # gets the current channel
                         context = parameters [0]
@@ -179,20 +179,20 @@ class IRCbot:
                                 self.ircSend('PRIVMSG %s :There are %s active users in here (only users identified with NickServ are included)' % (context, len(self.listActive(context))))
 
                         # adds channels to autojoin list and joins them
-                        elif trail[0].lower() == '!channel' and len(trail) > 2:
+                        elif '!channel' in trail[0].lower() and len(trail) > 2 and len(trail[0]) <= 9:
                             self.addRemoveList(Host,trail[1].lower(),trail[2:],'CHAN')
                             self.joinChannel()
 
                         # adds users to ignore list (ie: bots)
-                        elif trail[0].lower() == '!ignore' and len(trail) > 2:
+                        elif '!ignore' in trail[0].lower() and len(trail) > 2 and len(trail[0]) <= 8:
                             self.addRemoveList(Host,trail[1].lower(),trail[2:],'IGNORE')
 
                         # adds users to sudoer list (ie: admins)
-                        elif trail[0].lower() == '!admin' and len(trail) > 2:
+                        elif '!admin' in trail[0].lower() and len(trail) > 2 and len(trail[0]) <= 7:
                             self.addRemoveList(Host,trail[1].lower(),trail[2:],'SUDOER')
 
                         # executes command
-                        elif trail[0] == '!nwodo':
+                        elif '!nwodo' in trail[0].lower() and len(trail) > 2 and len(trail[0]) <= 7:
                             if Host in self.info['SUDOER'].split(',') or Host in self.info['OWNER'].split(','):
                                 self.ircSend(' '.join(trail[1:]))
                                 
@@ -200,19 +200,21 @@ class IRCbot:
                         if Nick == 'Doger' and len(trail) > 6:
                             if trail[0] == 'Such' and trail[6].strip('!') == self.info['NICK']:
                                 initAmount = int(trail[4][1:])
-                                activeUser = self.listActive(context)
-                                tipAmount = initAmount // len(activeUser)
-                                if tipAmount >= 10:
-                                    self.ircSend('PRIVMSG Doger :mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
-                                    self.ircSend('PRIVMSG %s :%s is tipping %s shibes with Ɖ%s: %s' % (context, trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
+                                activeUser = self.listActive(context,10,trail[1])
+                                if len(activeUser) > 0:
+                                    tipAmount = initAmount // len(activeUser)
+                                    if tipAmount >= 10:
+                                        self.ircSend('PRIVMSG Doger :mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
+                                        self.ircSend('PRIVMSG %s :%s is tipping %s shibes with Ɖ%s: %s' % (context, trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
+                                    else:
+                                        self.ircSend('PRIVMSG Doger :mtip %s %s' % (trail[1], initAmount))
+                                        self.ircSend('PRIVMSG %s :Sorry %s, not enough to go around. Returning tip.' % (context, trail[1]))
                                 else:
                                     self.ircSend('PRIVMSG Doger :mtip %s %s' % (trail[1], initAmount))
-                                    self.ircSend('PRIVMSG %s :Sorry %s, not enough to go around. Returning tip.' % trail[1])
-                                    
-                                                 
+                                    self.ircSend('PRIVMSG %s :Sorry %s, nobody is active! Returning tip.' % (context,trail[1]))
 
                         # checks for reddit command
-                        if trail[0] == '!reddit' and len(trail) > 1:
+                        if '!reddit' in trail[0].lower() and len(trail) > 1 and len(trail[0]) <= 8:
                             if curTime - IRCbot.redditLimit > 2:
                                 try:
                                     subreddit = trail[1]
@@ -229,30 +231,36 @@ class IRCbot:
                                 self.ircSend('NOTICE %s :Please wait %s second(s) (reddit API restrictions)' % (Nick, str(2 - (curTime - IRCbot.redditLimit))))
 
                         # checks for urban dictionary command
-                        elif trail[0] == '!ud' and len(trail) > 1:
+                        elif '!ud' in trail[0].lower() and len(trail) > 1 and len(trail[0]) <= 4:
                             try:
-                                r = requests.get(r'http://api.urbandictionary.com/v0/define?term=%s' % '+'.join(trail[1:]))
+                                payload = {'term': '+'.join(trail[1:])}
+                                r = requests.get('http://api.urbandictionary.com/v0/define', params = payload)
                                 data = r.json()
                                 definition = ' '.join(data['list'][0]['definition'].splitlines())
                                 truncated = ''
                                 if len(definition) >= 100:
                                     truncated = '...'
                                     definition = definition[:97]
-                                self.ircSend('PRIVMSG %s :12[%s] 06%s%s - 10%s' % (context, ' '.join(trail[1:]), definition[:100], truncated, data['list'][0]['permalink']))
+                                self.ircSend('PRIVMSG %s :08,07Urban Dictionary 12[%s] 06%s%s - 10%s' % (context, ' '.join(trail[1:]), definition[:100], truncated, data['list'][0]['permalink']))
                             except Exception as e:
                                 print(e)
-
+                        elif '!google' in trail[0].lower() and len(trail) > 1 and len(trail[0]) <= 8:
+                            payload = {'q': '+'.join(trail[1:]), 'btnI': ''}
+                            r = requests.get('https://www.google.com/search', params = payload)
+                            self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 06[%s] 13%s' % (context,' '.join(trail[1:]), r.url))
+                            
+                        
                         # fetches Youtube video info
-                        if 'www.youtu.be' in line or 'www.youtube.com' in line:
+                        if 'youtu.be' in line or 'youtube.com' in line:
                             for w in trail:
-                                if 'www.youtu.be/' in w:
-                                    vidID = w.split('www.youtu.be/')[1]
+                                if 'youtu.be/' in w:
+                                    vidID = w.split('youtu.be/')[1]
                                     break
-                                elif 'www.youtube.com/watch?v=' in w:
-                                    vidID = w.split('www.youtube.com/watch?v=')[1]
+                                elif 'youtube.com/watch?v=' in w:
+                                    vidID = w.split('youtube.com/watch?v=')[1]
                                     break
-                                elif 'www.youtube.com/v/' in w:
-                                    vidID = w.split('www.youtube.com/v/')[1]
+                                elif 'youtube.com/v/' in w:
+                                    vidID = w.split('youtube.com/v/')[1]
                                     break
                             vidID = vidID.split('#')[0].split('&')[0]
                             try:
@@ -266,6 +274,19 @@ class IRCbot:
                                 self.ircSend('PRIVMSG %s :01,00You00,04Tube %s' % (context, ytInfo))
                             except Exception as e:
                                 print(e)
+                        elif 'http://' in line or 'https://' in line:
+                            for w in trail:
+                                if 'http://' in w:
+                                    url = w
+                                    break
+                                if 'https://' in w:
+                                    url = w
+                                    break
+                            site = requests.get(url)
+                            tree = html.fromstring(site.text)
+                            title = tree.xpath('/html/head/title/text()')
+                            self.ircSend('PRIVMSG %s :03%s 09(%s)' % (context, title, url))
+                                
             except Exception as e:
                 print(e)
                 
@@ -295,12 +316,17 @@ class IRCbot:
         with open('users.txt', 'w+') as file:
             file.write(str(self.userDict))
     
-    def listActive(self,chan,minutes=10):
+    def listActive(self,chan,minutes=10,caller=None):
         activeList = []
         validList = []
         curTime = time.mktime(time.gmtime())
         userDict = list(self.userDict)
         mostRecent = list(dict(sorted(self.activeDict[chan].items(), key=itemgetter(1), reverse=True)).keys())
+        for group in userDict:
+            nickList = self.userDict[group]
+            if caller != None and caller in nickList:
+                userDict.remove(group)
+                break
         for rnick in mostRecent:
             for group in userDict:
                 nickList = self.userDict[group]
