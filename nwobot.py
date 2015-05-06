@@ -13,7 +13,7 @@ class setupBot:
         if 'Y' in yesorno or 'y' in yesorno:
             while True:
                 self.newinfo = {}
-                self.newinfo['HOST'] = input("\nEnter the IRC server that the bot should join: ")
+                self.newinfo['HOST'] = input("\nEnter the IRC network that the bot should join: ")
                 self.newinfo['PORT'] = input("Enter the port that the bot should connect with: ")
                 self.newinfo['NICK'] = input("Enter the nickname that the bot should use: ")
                 self.newinfo['SASL'] = input("Do you to authenticate using SASL? (y/N): ")
@@ -223,7 +223,7 @@ class IRCbot:
                                         nsfwstatus = '[NSFW]'
                                     else:
                                         nsfwstatus = ''
-                                    self.ircSend('PRIVMSG %s :04%s07[r/%s] 10%s - 14%s' % (context, nsfwstatus, subreddit, submission.title, submission.url))
+                                    self.ircSend('PRIVMSG %s :01,11Reddit 04%s07[r/%s] 10%s - 14%s' % (context, nsfwstatus, subreddit, submission.title, submission.url))
                                 except:
                                     pass
                                 IRCbot.redditLimit = time.mktime(time.gmtime())
@@ -284,9 +284,9 @@ class IRCbot:
                                     break
                             site = requests.get(url)
                             tree = html.fromstring(site.text)
-                            title = tree.xpath('/html/head/title/text()')
+                            title = tree.xpath('/html/head/title[1]/text()')[0].strip()
                             if title:
-                                self.ircSend('PRIVMSG %s :03%s 09(%s)' % (context, title, url))
+                                self.ircSend('PRIVMSG %s :09[%s] 03%s' % (context, url, title))
                                 
             except Exception as e:
                 print(e)
