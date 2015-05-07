@@ -23,6 +23,7 @@ class setupBot:
                 self.newinfo['IGNORE'] = input("Enter the nicks that the bot should ignore (comma separated): ")
                 self.newinfo['OWNER'] = input("Enter the hosts of the owner(s) (comma separated): ")
                 self.newinfo['SUDOER'] = input("Enter the hosts to receive extra privileges (comma separated): ")
+                self.newinfo['YTAPI'] = input("Enter your YouTube Google API key: ")
                 print("\n%s" % self.newinfo)
                 confirm = input("\n Confirm? y/N: ")
                 if 'Y' in confirm or 'y' in confirm:
@@ -233,15 +234,14 @@ class IRCbot:
                         # checks for urban dictionary command
                         elif '!ud' in trail[0].lower() and len(trail) > 1 and len(trail[0]) <= 4:
                             try:
-                                payload = {'term': '+'.join(trail[1:])}
-                                r = requests.get('http://api.urbandictionary.com/v0/define', params = payload)
+                                r = requests.get('http://api.urbandictionary.com/v0/define?term=%s' % '+'.join(trail[1:]))
                                 data = r.json()
                                 definition = ' '.join(data['list'][0]['definition'].splitlines())
                                 truncated = ''
-                                if len(definition) >= 100:
+                                if len(definition) >= 150:
                                     truncated = '...'
-                                    definition = definition[:97]
-                                self.ircSend('PRIVMSG %s :08,07Urban Dictionary 12[%s] 06%s%s - 10%s' % (context, ' '.join(trail[1:]), definition[:100], truncated, data['list'][0]['permalink']))
+                                    definition = definition[:146]
+                                self.ircSend('PRIVMSG %s :08,07Urban Dictionary 12[%s] 06%s%s - 10%s' % (context, data['list'][0]['word'], definition[:149], truncated, data['list'][0]['permalink']))
                             except Exception as e:
                                 print(e)
                         elif '!google' in trail[0].lower() and len(trail) > 1 and len(trail[0]) <= 8:
@@ -264,13 +264,17 @@ class IRCbot:
                                     break
                             vidID = vidID.split('#')[0].split('&')[0]
                             try:
-                                r = requests.get(r'https://gdata.youtube.com/feeds/api/videos/%s?v=2&alt=json' % vidID)
+                                payload = {'part': 'snippet,statistics', 'id': vidID, 'key': self.info['YTAPI']}
+                                r = requests.get('https://www.googleapis.com/youtube/v3/videos', params = payload)
                                 data = r.json()
-                                likes = int(data['entry']['yt$rating']['numLikes'])
-                                dislikes = int(data['entry']['yt$rating']['numDislikes'])
+                                likes = int(data['items'][0]['statistics']['likeCount'])
+                                dislikes = int(data['items'][0]['statistics']['dislikeCount'])
                                 votes = likes + dislikes
-                                bar = '12' + str(likes) + ' ' + '—' * round(likes*10/votes) + '15' + '—' * round(dislikes*10/votes) + ' ' + str(dislikes)
-                                ytInfo = '%s 14uploaded by %s  %s' % (data['entry']['title']['$t'], data['entry']['author'][0]['name']['$t'], bar)
+                                if likes and dislikes:
+                                    bar = '12' + str(likes) + ' ' + '—' * round(likes*10/votes) + '15' + '—' * round(dislikes*10/votes) + ' ' + str(dislikes)
+                                else:
+                                    bar = ''
+                                ytInfo = '%s 14uploaded by %s  %s' % (data['items'][0]['snippet']['title'], data['items'][0]['snippet']['channelTitle'], bar)
                                 self.ircSend('PRIVMSG %s :01,00You00,04Tube %s' % (context, ytInfo))
                             except Exception as e:
                                 print(e)
@@ -282,11 +286,14 @@ class IRCbot:
                                 if 'https://' in w:
                                     url = w
                                     break
-                            site = requests.get(url)
-                            tree = html.fromstring(site.text)
-                            title = tree.xpath('/html/head/title[1]/text()')[0].strip()
-                            if title:
-                                self.ircSend('PRIVMSG %s :09[%s] 03%s' % (context, url, title))
+                            try:
+                                site = requests.get(url, timeout=2)
+                                tree = html.fromstring(site.text)
+                                title = tree.xpath('/html/head/title/text()')[0].strip()
+                                if title:
+                                    self.ircSend('PRIVMSG %s :09[%s] 03%s' % (context, url, title))
+                            except Exception as e:
+                                print(e)
                                 
             except Exception as e:
                 print(e)
