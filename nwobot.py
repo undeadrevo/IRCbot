@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from lxml import html
+from lxml import etree
 from operator import itemgetter
-import base64, praw, requests, socket, ssl, time
+import base64, praw, re, requests, socket, ssl, time
 
 # Author = Brian W.
 
@@ -224,7 +224,7 @@ class IRCbot:
                                         nsfwstatus = '[NSFW]'
                                     else:
                                         nsfwstatus = ''
-                                    self.ircSend('PRIVMSG %s :01,11Reddit 04%s07[r/%s] 10%s - 14%s' % (context, nsfwstatus, subreddit, submission.title, submission.url))
+                                    self.ircSend('PRIVMSG %s :07,00Reddit 04%s10[r/%s] 12%s - 14%s' % (context, nsfwstatus, subreddit, submission.title, submission.url))
                                 except:
                                     pass
                                 IRCbot.redditLimit = time.mktime(time.gmtime())
@@ -245,9 +245,22 @@ class IRCbot:
                             except Exception as e:
                                 print(e)
                         elif '!google' in trail[0].lower() and len(trail) > 1 and len(trail[0]) <= 8:
-                            payload = {'q': '+'.join(trail[1:]), 'btnI': ''}
-                            r = requests.get('https://www.google.com/search', params = payload)
-                            self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 06[%s] 13%s' % (context,' '.join(trail[1:]), r.url))
+                            r = requests.get('https://www.google.com/search?q=%s&btnI' % '+'.join(trail[1:]))
+                            if r.url == 'https://www.google.com/search?q=%s&btnI' % '+'.join(trail[1:]):
+                                self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 06[%s] 13%s' % (context,' '.join(trail[1:]), r.url[:-5]))
+                            else:
+                                self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 06[%s] 13%s' % (context,' '.join(trail[1:]), r.url))
+                        elif '!wiki' in trail[0].lower() and len(trail) > 1 and len(trail[0]) <= 6:
+                            url = 'http://en.wikipedia.org/wiki/%s' % '_'.join(trail[1:])
+                            r = requests.get(url)
+                            tree = etree.HTML(r.text)
+                            title = ''.join(tree.xpath('/html/body/div[@id="content"]/h1[@id="firstHeading"]//text()'))
+                            content = ''.join(tree.xpath('/html/body/div[@id="content"]/div[@id="bodyContent"]/div[@id="mw-content-text"]/p[1]//text()'))
+                            content = re.sub('\[.*?\]','',content)
+                            exerpt = '. '.join(content.split('. ')[:2])
+                            if exerpt[-1] != '.':
+                                exerpt = exerpt + '.'
+                            self.ircSend('PRIVMSG %s :Wikipedia 03[%s] 12%s 11%s' % (context, title, exerpt, url))
                             
                         
                         # fetches Youtube video info
@@ -262,7 +275,7 @@ class IRCbot:
                                 elif 'youtube.com/v/' in w:
                                     vidID = w.split('youtube.com/v/')[1]
                                     break
-                            vidID = vidID.split('#')[0].split('&')[0]
+                            vidID = vidID.split('#')[0].split('&')[0].split('?')[0]
                             try:
                                 payload = {'part': 'snippet,statistics', 'id': vidID, 'key': self.info['YTAPI']}
                                 r = requests.get('https://www.googleapis.com/youtube/v3/videos', params = payload)
@@ -287,8 +300,8 @@ class IRCbot:
                                     url = w
                                     break
                             try:
-                                site = requests.get(url, timeout=2)
-                                tree = html.fromstring(site.text)
+                                r = requests.get(url, timeout=2)
+                                tree = etree.HTML(r.text)
                                 title = tree.xpath('/html/head/title/text()')[0].strip()
                                 if title:
                                     self.ircSend('PRIVMSG %s :09[%s] 03%s' % (context, url, title))
