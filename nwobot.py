@@ -103,7 +103,7 @@ class IRCbot:
                         Host = prefix.split('@')[1]
                     
                     # SASL
-                    if self.SASL.lower() = 'y':
+                    if self.SASL.lower() == 'y':
                         if command == 'CAP' and parameters [0] == '*' and parameters[1] == 'LS':
                             self.ircSend('CAP REQ :%s' % ' '.join(trail))
                         if command == 'CAP' and parameters [1] == 'ACK':
