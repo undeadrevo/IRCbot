@@ -63,7 +63,8 @@ class IRCbot:
     def connect(self):
         self.socket.connect((self.info['HOST'], int(self.info['PORT'])))
         self.irc = ssl.wrap_socket(self.socket)
-        self.ircSend('CAP LS')
+        if self.SASL:
+            self.ircSend('CAP LS')
         self.ircSend('NICK %s' % self.info['NICK'])
         self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
         self.main()
