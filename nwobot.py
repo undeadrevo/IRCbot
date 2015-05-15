@@ -68,6 +68,7 @@ class IRCbot:
             self.ircSend('CAP LS')
         self.ircSend('NICK %s' % self.info['NICK'])
         self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
+        self.joinChannel()
         
     def joinChannel(self):
         self.ircSend('JOIN %s' % self.info['CHAN'])
@@ -199,7 +200,7 @@ class IRCbot:
                                 self.ircSend('PRIVMSG %s :There are %s active users in here (only users identified with NickServ are included)' % (context, len(self.listActive(context))))
 
                         # list modifier commands
-                        if trail[1].lower() == 'add' or trail[1].lower() == 'remove':
+                        if len(trail) > 1 and trail[1].lower() == 'add' or trail[1].lower() == 'remove':
                             def addRemoveList(self,issuer,issuerNick,command,additem,addcat):
                                 if issuer in self.info['SUDOER'].split(',') or issuer in self.info['OWNER'].split(','):
                                     if command == 'add':
@@ -215,21 +216,24 @@ class IRCbot:
                                     self.updateFile()
                                 else:
                                     self.ircSend('NOTICE %s :You are not authorized to perform that command' % issuerNick)
+                                    
                             # adds channels to autojoin list and joins them
                             if commandValid('!channel',3):
                                 addRemoveList(Host,Nick,trail[1].lower(),trail[2:],'CHAN')
                                 self.joinChannel()
                                 if trail[1].lower() == 'remove':
                                     self.ircSend('PART %s' % ','.join(trail[2:]))
+                                continue
 
                             # adds users to ignore list (ie: bots)
                             if commandValid('!ignore',3):
                                 addRemoveList(Host,Nick,trail[1].lower(),trail[2:],'IGNORE')
+                                continue
 
                             # adds users to sudoer list (ie: admins)
                             if commandValid('!admin',3):
                                 addRemoveList(Host,Nick,trail[1].lower(),trail[2:],'SUDOER')
-                            continue
+                                continue
 
                         # executes command
                         if commandValid('!nwodo',3):
@@ -278,7 +282,7 @@ class IRCbot:
                                     self.ircSend('PRIVMSG %s :07,00Reddit 04%s10[r/%s] 12%s - 14%s' % (context, nsfwstatus, subreddit, submission.title, submission.url))
                                 except:
                                     print('Error fetching subreddit')
-                                    self.ircSend('PRIVMSG %s :I cannot appear to fetch this subreddit right now' % context)
+                                    self.ircSend('PRIVMSG %s :I cannot fetch this subreddit at the moment' % context)
                                 self.redditLimit = time.mktime(time.gmtime())
                             continue
 
