@@ -55,6 +55,9 @@ class IRCbot:
         self.allUserList = []
         for channel in self.info['CHAN'].split(','):
             self.activeDict[channel] = {}
+        
+        self.redditEnabled = False
+        
         self.connect()
         self.main()
         
