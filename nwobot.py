@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding=utf8
 
-from lxml import etree
+from bs4 import BeautifulSoup
 from operator import itemgetter
 import base64, praw, re, requests, socket, ssl, time
 
@@ -157,7 +157,7 @@ class IRCbot:
                     if Nick == self.info['NICK']:
                         self.info['NICK'] = trail[0]
                     else:
-                        self.ircSend('WHOIS %s' % Nick)
+                        self.ircSend('WHOIS %s' % trail[0])
                     continue
 
                 # parses WHOIS result
@@ -281,7 +281,7 @@ class IRCbot:
                                 nsfwstatus = ''
                                 if submission.over_18:
                                     nsfwstatus = '[NSFW]'
-                                self.ircSend('PRIVMSG %s :07,00Reddit 04%s10[r/%s] 12%s - 14%s' % (context, nsfwstatus, subreddit, submission.title, submission.url))
+                                self.ircSend('PRIVMSG %s :07Reddit 04%s10r/%s - 12%s 14(%s)' % (context, nsfwstatus, subreddit, submission.title, submission.url))
                             except:
                                 print('Error fetching subreddit')
                                 self.ircSend('PRIVMSG %s :I cannot fetch this subreddit at the moment' % context)
@@ -299,7 +299,7 @@ class IRCbot:
                                 if len(definition) >= 150:
                                     truncated = '...'
                                     definition = definition[:146]
-                                self.ircSend('PRIVMSG %s :08,07Urban Dictionary 12[%s] 06%s%s - 10%s' % (context, data['list'][0]['word'], definition[:149], truncated, data['list'][0]['permalink']))
+                                self.ircSend('PRIVMSG %s :Urban 08Dictionary 12%s - 06%s%s 10(%s)' % (context, data['list'][0]['word'], definition[:149], truncated, data['list'][0]['permalink']))
                             else:
                                 self.ircSend('PRIVMSG %s :no definition for %s' % (context, ' '.join(trail[1:])))
                         except:
@@ -314,24 +314,24 @@ class IRCbot:
                             self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 06[%s] 13%s' % (context,' '.join(trail[1:]), url))
                         else:
                             r2 = requests.get(r.url, timeout=2)
-                            tree = etree.HTML(r2.text)
-                            title = tree.xpath('/html/head/title/text()')[0].strip()
+                            soup = BeautifulSoup(r.text)
+                            title = soup.title.text
                             if title:
                                 linkinfo = ' 03%s' % title
-                            self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 06[%s]%s 13%s' % (context,' '.join(trail[1:]), linkinfo, r.url))
+                            self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 12%s – 04%s 08(%s)' % (context,' '.join(trail[1:]), linkinfo, r.url))
                         continue
 
                     if commandValid('!wiki',2):
                         url = 'http://en.wikipedia.org/wiki/%s' % '_'.join(trail[1:])
                         r = requests.get(url)
-                        tree = etree.HTML(r.text)
-                        title = ''.join(tree.xpath('/html/body/div[@id="content"]/h1[@id="firstHeading"]//text()'))
-                        content = ''.join(tree.xpath('/html/body/div[@id="content"]/div[@id="bodyContent"]/div[@id="mw-content-text"]/p[1]//text()'))
-                        content = re.sub('\[.*?\]','',content)
+                        soup = BeautifulSoup(r.text)
+                        title = soup.title.text
+                        content = soup.select('div > p')[0].text
+                        content = re.sub('\\n','',re.sub('\[.*?\]','',content))
                         exerpt = '. '.join(content.split('. ')[:2])
-                        if exerpt[-1] != '.':
+                        if not exerpt[-1] in '!?.':
                             exerpt = exerpt + '.'
-                        self.ircSend('PRIVMSG %s :Wikipedia 03[%s] 12%s 11%s' % (context, title, exerpt, url))
+                        self.ircSend('PRIVMSG %s :Wikipedia 03%s – 12%s 11(%s)' % (context, title, exerpt, r.url))
                         continue
 
                     # fetches Youtube video info
@@ -350,6 +350,8 @@ class IRCbot:
                         payload = {'part': 'snippet,statistics', 'id': vidID, 'key': self.info['YTAPI']}
                         r = requests.get('https://www.googleapis.com/youtube/v3/videos', params = payload)
                         data = r.json()
+                        title = data['items'][0]['snippet']['title']
+                        channel = data['items'][0]['snippet']['channelTitle']
                         likes = int(data['items'][0]['statistics']['likeCount'])
                         dislikes = int(data['items'][0]['statistics']['dislikeCount'])
                         votes = likes + dislikes
@@ -357,24 +359,42 @@ class IRCbot:
                             bar = '12' + str(likes) + ' ' + '—' * round(likes*10/votes) + '15' + '—' * round(dislikes*10/votes) + ' ' + str(dislikes)
                         else:
                             bar = ''
-                        ytInfo = '%s 14uploaded by %s  %s' % (data['items'][0]['snippet']['title'], data['items'][0]['snippet']['channelTitle'], bar)
-                        self.ircSend('PRIVMSG %s :01,00You00,04Tube %s' % (context, ytInfo))
+                        self.ircSend('PRIVMSG %s :You00,04Tube %s 14uploaded by %s – %s' % (context, title, channel, bar))
                         continue
-
+                        
+                    # gets basic massdrop information and also fixes link to include guest_open
+                    if 'https://www.massdrop.com/' in line:
+                        for w in trail:
+                            if 'https://www.massdrop.com/' in w:
+                                url = w
+                                if not '?mode=guest_open' in line:
+                                    url = url + '?mode=guest_open'
+                        try:
+                            r = requests.get(url)
+                            soup = BeautifulSoup(r.text)
+                            title = soup.title.text
+                            cprice = soup.find(class_="current-price")
+                            mrsp = cprice.next_sibling.next_sibling.next_sibling.next_sibling
+                            tRem = soup.find(class_="item-time").text
+                            self.ircSend('PRIVMSG %s :Massdrop 02%s – 03Price: %s – 10MRSP: %s – 07%s 12(%s)' % (context, title, cprice.text, mrsp.text[5:], tRem, url))
+                        except Exception as e:
+                            print(e)
+                        continue
+                        
                     # general link getting
                     if 'http://' in line or 'https://' in line:
                         for w in trail:
                             if 'http://' in w or 'https://' in w:
                                 url = w
                                 break
-                        r = requests.get(url, timeout=2)
-                        tree = etree.HTML(r.text)
                         try:
-                            title = tree.xpath('/html/head/title/text()')[0].strip()
+                            r = requests.get(url, timeout=2)
+                            soup = BeautifulSoup(r.text)
+                            title = soup.title.text
                             if title:
-                                self.ircSend('PRIVMSG %s :09[%s] 03%s' % (context, url, title))
-                        except:
-                            pass
+                                self.ircSend('PRIVMSG %s :03%s 09(%s)' % (context, title, url))
+                        except Exception as e:
+                            print(e)
                         continue
 #            except Exception as e:
 #                print(e)
