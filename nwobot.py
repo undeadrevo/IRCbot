@@ -34,6 +34,94 @@ class setup:
                 userlist = {}
                 file.write(str(userlist))
 
+class reddit:
+    def __init__(self):
+        redditAPI()
+    
+    def redditAPI(self):
+        try:
+            self.r = praw.Reddit('redFetch by u/NewellWorldOrder''Fetches reddit submission links')
+            enableNSFW = self.r.get_random_subreddit(nsfw=True)
+            self.redditEnabled = True
+            self.redditLimit = time.mktime(time.gmtime())
+        except:
+            self.redditEnabled = False
+        pass
+    
+    def command(self,msgrecv):
+        curTime = self.curTime()
+        if not self.redditEnabled:
+            self.redditAPI()
+        elif curTime - self.redditLimit <= 2:
+            self.ircSend('NOTICE %s :Please wait %s second(s) due to Reddit API restrictions' % (msgrecv['nick'], str(2 - (curTime - self.redditLimit))))
+        else:
+            try:
+                subreddit = msgrecv['trail'][1]
+                submission = self.r.get_subreddit(subreddit).get_random_submission()
+                nsfwstatus = ''
+                if submission.over_18:
+                    nsfwstatus = '[NSFW]'
+                self.privmsg(msgrecv['context'],'07Reddit 04%s10r/%s - 12%s 14(%s)' % (nsfwstatus, subreddit, submission.title, submission.url))
+            except:
+                print('Error fetching subreddit')
+                self.privmsg(msgrecv['context'],'I cannot fetch this subreddit at the moment')
+            self.redditLimit = time.mktime(time.gmtime())
+            
+class ud:
+    def command(self,msgrecv):
+        try:
+            r = requests.get('http://api.urbandictionary.com/v0/define?term=%s' % '+'.join(msgrecv['trail'][1:]))
+            data = r.json()
+            if data['result_type'] != 'no_results':
+                definition = ' '.join(data['list'][0]['definition'].splitlines())
+                truncated = ''
+                if len(definition) >= 150:
+                    truncated = '...'
+                    definition = definition[:146]
+                self.privmsg(msgrecv['context'],'Urban08Dictionary 12%s - 06%s%s 10(%s)' % (data['list'][0]['word'], definition[:149], truncated, data['list'][0]['permalink']))
+            else:
+                self.privmsg(msgrecv['context'],'No definition for %s' % ' '.join(msgrecv['trail'][1:]))
+        except:
+            print('Error fetching definition')
+            self.privmsg(msgrecv['context'],'I cannot fetch this definition at the moment')
+            
+class google:
+    def command(self,msgrecv):
+        url = 'https://www.google.com/search?q=%s&btnI' % '+'.join(msgrecv['trail'][1:])
+        r = requests.get('https://www.google.com/search?q=%s&btnI' % '+'.join(msgrecv['trail'][1:]))
+        if '/search?q=%s&btnI' % '+'.join(msgrecv['trail'][1:]) in r.url:
+            self.privmsg(msgrecv['context'],'12G04o08o12g03l04e 06[%s] 13%s' % (' '.join(msgrecv['trail'][1:]), url))
+        else:
+            r2 = requests.get(r.url, timeout=2)
+            soup = BeautifulSoup(r.text)
+            title = soup.title.text
+            if title:
+                linkinfo = ' – 03%s' % title
+            self.privmsg(msgrecv['context'],'12G04o08o12g03l04e 12%s04%s 08(%s)' % (' '.join(msgrecv['trail'][1:]), linkinfo, r.url))
+            
+class wiki:
+    def command(self,msgrecv):
+        search = '_'.join(msgrecv['trail'][1:])
+        url = 'http://en.wikipedia.org/wiki/%s' % search
+        r = requests.get(url)
+        soup = BeautifulSoup(r.text)
+        title = soup.title.text
+        content = soup.select('div > p')[0].text
+        content = re.sub('\'','\\\'',re.sub('\\n','',re.sub('\[.*?\]','',content)))
+        if content == 'Other reasons this message may be displayed:':
+            self.privmsg(msgrecv['context'],'Wikipedia 03%s – 12No article found. Maybe you could write it: 11https://en.wikipedia.org/w/index.php?title=Special:UserLogin&returnto=%s' % (title, search))
+        else:
+            if content == '%s may refer to:' % re.sub('http://en.wikipedia.org/wiki/','',r.url):
+                r = requests.get('http://en.wikipedia.org%s' % soup.find('ul').find('li').find('a')['href'])
+                soup = BeautifulSoup(r.text)
+                title = soup.title.text
+                content = soup.select('div > p')[0].text
+                content = re.sub('\'','\\\'',re.sub('\\n','',re.sub('\[.*?\]','',content)))
+            exerpt = '. '.join(content.split('. ')[:1])
+            if not exerpt[-1] in '!?.':
+                exerpt = exerpt + '.'
+            self.privmsg(msgrecv['context'],'Wikipedia 03%s – 12%s 11(%s)' % (title, exerpt, r.url))
+                
 class IRCbot:
     socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     
@@ -55,7 +143,7 @@ class IRCbot:
         self.allUserList = []
         for channel in self.info['CHAN'].split(','):
             self.activeDict[channel] = {}
-        self.redditAPI()
+        reddit.redditAPI(self)
         self.connect()
         self.main()
         
@@ -67,15 +155,6 @@ class IRCbot:
         self.ircSend('NICK %s' % self.info['NICK'])
         self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
         self.ircSend('JOIN %s' % self.info['CHAN'])
-        
-    def redditAPI(self):
-        try:
-            self.r = praw.Reddit('redFetch by u/NewellWorldOrder''Fetches reddit submission links')
-            enableNSFW = self.r.get_random_subreddit(nsfw=True)
-            self.redditEnabled = True
-            self.redditLimit = time.mktime(time.gmtime())
-        except:
-            self.redditEnabled = False
         
     def main(self):
         while True:
@@ -89,17 +168,17 @@ class IRCbot:
                 curTime = time.mktime(time.gmtime())
                 words = str(line).split()
                 prefix = ''
-                Nick = ''
-                Ident = ''
-                Host = ''
+                nick = ''
+                ident = ''
+                host = ''
                 trail = []
                 parameters = []
                 if line[0] == ':':
                     prefix = words.pop(0)[1:]
                     if '!' in prefix and '@' in prefix:
-                        Nick = prefix.split('!')[0]
-                        Ident = prefix.split('!')[1].split('@')[0]
-                        Host = prefix.split('@')[1]
+                        nick = prefix.split('!')[0]
+                        ident = prefix.split('!')[1].split('@')[0]
+                        host = prefix.split('@')[1]
                 if len(words) > 0:
                     command = words.pop(0)
                     for i in range(len(words)):
@@ -136,7 +215,7 @@ class IRCbot:
                     continue
 
                 # checks when identified with nickserv
-                if command == 'NOTICE' and Nick == 'NickServ':
+                if command == 'NOTICE' and nick == 'NickServ':
                     if len(trail) > 3:
                         if 'registered' in trail[3]:
                             self.ircSend('PRIVMSG NickServ :identify %s' % self.info['PASS'])
@@ -154,7 +233,7 @@ class IRCbot:
 
                 # checks nick change
                 if command == 'NICK':
-                    if Nick == self.info['NICK']:
+                    if nick == self.info['NICK']:
                         self.info['NICK'] = trail[0]
                     else:
                         self.ircSend('WHOIS %s' % trail[0])
@@ -171,17 +250,25 @@ class IRCbot:
 
                 # updates active list if user leaves
                 if command == 'PART':
-                    if Nick in self.activeDict[parameters[0]]:
-                        del self.activeDict[parameters[0]][Nick]
+                    if nick in self.activeDict[parameters[0]]:
+                        del self.activeDict[parameters[0]][nick]
                     continue
                 if command == 'QUIT':
                     for channels in self.info['CHAN'].split(','):
-                        if Nick in self.activeDict[channels]:
-                            del self.activeDict[channels][Nick]
+                        if nick in self.activeDict[channels]:
+                            del self.activeDict[channels][nick]
                     continue
 
                 # checks when PRIVMSG received
                 if command == 'PRIVMSG':
+                    msgrecv = {}
+                    msgrecv['context']=parameters[0]
+                    msgrecv['nick']=nick
+                    msgrecv['ident']=ident
+                    msgrecv['host']=host
+                    msgrecv['trail']=trail
+                    msgrecv['line']=line
+                    
                     def commandValid(cmd,minwords=1):
                         if len(trail) >= minwords and cmd in trail[0].lower() and len(trail[0]) <= len(cmd) + 1:
                             return True
@@ -194,23 +281,23 @@ class IRCbot:
                     # builds last spoke list
                     if context not in self.activeDict and context:
                         self.activeDict[context] = {}
-                    self.activeDict[context][Nick] = curTime
+                    self.activeDict[context][nick] = curTime
                     validList = []
                     for unicks in self.userDict.values():
                         validList.extend(unicks)
-                    if Nick not in validList and CAP == '+':
-                        self.ircSend('WHOIS %s' % Nick)
+                    if nick not in validList and CAP == '+':
+                        self.ircSend('WHOIS %s' % nick)
 
                     # returns active users
                     if commandValid('!active'):
                         if len(self.listActive(context)) == 1:
-                            self.ircSend('PRIVMSG %s :There is 1 active user here (only users identified with NickServ are included)' % context)
+                            self.privmsg(context,'There is 1 active user here (only users identified with NickServ are included)')
                         else:
-                            self.ircSend('PRIVMSG %s :There are %s active users in here (only users identified with NickServ are included)' % (context, len(self.listActive(context))))
+                            self.privmsg(context,'There are %s active users in here (only users identified with NickServ are included)')
 
                     # list modifier commands
                     if len(trail) > 2 and (trail[1].lower() == 'add' or trail[1].lower() == 'remove'):
-                        def addRemoveList(self,issuer,issuerNick,command,additem,addcat):
+                        def addRemoveList(issuer,issuerNick,command,additem,addcat):
                             if issuer in self.info['SUDOER'].split(',') or issuer in self.info['OWNER'].split(','):
                                 if command == 'add':
                                     for item in additem:
@@ -224,11 +311,11 @@ class IRCbot:
                                             self.info[addcat] = ','.join(updatedList)
                                 self.updateFile()
                             else:
-                                self.ircSend('NOTICE %s :You are not authorized to perform that command' % issuerNick)
+                                self.privmsg(context,'NOTICE %s :You are not authorized to perform that command' % issuerNick)
 
                         # adds channels to autojoin list and joins them
                         if commandValid('!channel',3):
-                            addRemoveList(Host,Nick,trail[1].lower(),trail[2:],'CHAN')
+                            addRemoveList(host,nick,trail[1].lower(),trail[2:],'CHAN')
                             self.ircSend('JOIN %s' % self.info['CHAN'])
                             if trail[1].lower() == 'remove':
                                 self.ircSend('PART %s' % ','.join(trail[2:]))
@@ -236,102 +323,56 @@ class IRCbot:
 
                         # adds users to ignore list (ie: bots)
                         if commandValid('!ignore',3):
-                            addRemoveList(Host,Nick,trail[1].lower(),trail[2:],'IGNORE')
+                            addRemoveList(host,nick,trail[1].lower(),trail[2:],'IGNORE')
                             continue
 
                         # adds users to sudoer list (ie: admins)
                         if commandValid('!admin',3):
-                            addRemoveList(Host,Nick,trail[1].lower(),trail[2:],'SUDOER')
+                            addRemoveList(host,nick,trail[1].lower(),trail[2:],'SUDOER')
                             continue
 
                     # executes command
                     if commandValid('!nwodo',3):
-                        if Host in self.info['SUDOER'].split(',') or Host in self.info['OWNER'].split(','):
+                        if host in self.info['SUDOER'].split(',') or host in self.info['OWNER'].split(','):
                             self.ircSend(' '.join(trail[1:]))
                         continue
 
                     # soaker!
-                    if Nick == 'Doger' and len(trail) > 6:
+                    if nick == 'Doger' and len(trail) > 6:
                         if trail[0] == 'Such' and trail[6].strip('!') == self.info['NICK']:
                             initAmount = int(trail[4][1:])
                             activeUser = self.listActive(context,10,trail[1])
                             if len(activeUser) > 0:
                                 tipAmount = initAmount // len(activeUser)
                                 if tipAmount >= 10:
-                                    self.ircSend('PRIVMSG Doger :mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
-                                    self.ircSend('PRIVMSG %s :%s is tipping %s shibes with Ɖ%s: %s' % (context, trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
+                                    self.privmsg('Doger','mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
+                                    self.privmsg(context,'%s is tipping %s shibes with Ɖ%s: %s' % (trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
                                 else:
-                                    self.ircSend('PRIVMSG Doger :mtip %s %s' % (trail[1], initAmount))
-                                    self.ircSend('PRIVMSG %s :Sorry %s, not enough to go around. Returning tip.' % (context, trail[1]))
+                                    self.privmsg('Doger','mtip %s %s' % (trail[1], initAmount))
+                                    self.privmsg(context,'Sorry %s, not enough to go around. Returning tip.' % trail[1])
                             else:
-                                self.ircSend('PRIVMSG Doger :mtip %s %s' % (trail[1], initAmount))
-                                self.ircSend('PRIVMSG %s :Sorry %s, nobody is active! Returning tip.' % (context,trail[1]))
+                                self.privmsg('Doger','mtip %s %s' % (trail[1], initAmount))
+                                self.privmsg(context,'Sorry %s, nobody is active! Returning tip.' % trail[1])
                         continue
 
                     # checks for reddit command
                     if commandValid('!reddit',2):
-                        if not self.redditEnabled:
-                            self.redditAPI()
-                        elif curTime - self.redditLimit <= 2:
-                            self.ircSend('NOTICE %s :Please wait %s second(s) due to Reddit API restrictions' % (Nick, str(2 - (curTime - self.redditLimit))))
-                        else:
-                            try:
-                                subreddit = trail[1]
-                                submission = self.r.get_subreddit(subreddit).get_random_submission()
-                                nsfwstatus = ''
-                                if submission.over_18:
-                                    nsfwstatus = '[NSFW]'
-                                self.ircSend('PRIVMSG %s :07Reddit 04%s10r/%s - 12%s 14(%s)' % (context, nsfwstatus, subreddit, submission.title, submission.url))
-                            except:
-                                print('Error fetching subreddit')
-                                self.ircSend('PRIVMSG %s :I cannot fetch this subreddit at the moment' % context)
-                            self.redditLimit = time.mktime(time.gmtime())
+                        reddit.command(self,msgrecv)
                         continue
 
-                    # checks for urban dictionary command
+                    # Urban Dictionary definitions
                     if commandValid('!ud',2):
-                        try:
-                            r = requests.get('http://api.urbandictionary.com/v0/define?term=%s' % '+'.join(trail[1:]))
-                            data = r.json()
-                            if data['result_type'] != 'no_results':
-                                definition = ' '.join(data['list'][0]['definition'].splitlines())
-                                truncated = ''
-                                if len(definition) >= 150:
-                                    truncated = '...'
-                                    definition = definition[:146]
-                                self.ircSend('PRIVMSG %s :Urban 08Dictionary 12%s - 06%s%s 10(%s)' % (context, data['list'][0]['word'], definition[:149], truncated, data['list'][0]['permalink']))
-                            else:
-                                self.ircSend('PRIVMSG %s :no definition for %s' % (context, ' '.join(trail[1:])))
-                        except:
-                            print('Error fetching definition')
-                            self.ircSend('PRIVMSG %s :I cannot fetch this definition at the moment' % context)
+                        ud.command(self,msgrecv)
                         continue
 
+                    # Google search
                     if commandValid('!google',2):
-                        url = 'https://www.google.com/search?q=%s&btnI' % '+'.join(trail[1:])
-                        r = requests.get('https://www.google.com/search?q=%s&btnI' % '+'.join(trail[1:]))
-                        if '/search?q=%s&btnI' % '+'.join(trail[1:]) in r.url:
-                            self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 06[%s] 13%s' % (context,' '.join(trail[1:]), url))
-                        else:
-                            r2 = requests.get(r.url, timeout=2)
-                            soup = BeautifulSoup(r.text)
-                            title = soup.title.text
-                            if title:
-                                linkinfo = ' 03%s' % title
-                            self.ircSend('PRIVMSG %s :12G04o08o12g03l04e 12%s – 04%s 08(%s)' % (context,' '.join(trail[1:]), linkinfo, r.url))
+                        google.command(self,msgrecv)
                         continue
 
+                    # allows people to search for wikipedia articles
                     if commandValid('!wiki',2):
-                        url = 'http://en.wikipedia.org/wiki/%s' % '_'.join(trail[1:])
-                        r = requests.get(url)
-                        soup = BeautifulSoup(r.text)
-                        title = soup.title.text
-                        content = soup.select('div > p')[0].text
-                        content = re.sub('\\n','',re.sub('\[.*?\]','',content))
-                        exerpt = '. '.join(content.split('. ')[:2])
-                        if not exerpt[-1] in '!?.':
-                            exerpt = exerpt + '.'
-                        self.ircSend('PRIVMSG %s :Wikipedia 03%s – 12%s 11(%s)' % (context, title, exerpt, r.url))
+                        google.command(self,msgrecv)
                         continue
 
                     # fetches Youtube video info
@@ -359,7 +400,7 @@ class IRCbot:
                             bar = '12' + str(likes) + ' ' + '—' * round(likes*10/votes) + '15' + '—' * round(dislikes*10/votes) + ' ' + str(dislikes)
                         else:
                             bar = ''
-                        self.ircSend('PRIVMSG %s :You00,04Tube %s 14uploaded by %s – %s' % (context, title, channel, bar))
+                        self.privmsg(context,'You00,04Tube %s 14uploaded by %s – %s' % (title, channel, bar))
                         continue
                         
                     # gets basic massdrop information and also fixes link to include guest_open
@@ -376,7 +417,7 @@ class IRCbot:
                             cprice = soup.find(class_="current-price")
                             mrsp = cprice.next_sibling.next_sibling.next_sibling.next_sibling
                             tRem = soup.find(class_="item-time").text
-                            self.ircSend('PRIVMSG %s :Massdrop 02%s – 03Price: %s – 10MRSP: %s – 07%s 12(%s)' % (context, title, cprice.text, mrsp.text[5:], tRem, url))
+                            self.privmsg(context,'Massdrop 02%s – 03Price: %s – 10MRSP: %s – 07%s 12(%s)' % (title, cprice.text, mrsp.text[5:], tRem, url))
                         except Exception as e:
                             print(e)
                         continue
@@ -392,7 +433,7 @@ class IRCbot:
                             soup = BeautifulSoup(r.text)
                             title = soup.title.text
                             if title:
-                                self.ircSend('PRIVMSG %s :03%s 09(%s)' % (context, title, url))
+                                self.privmsg(context,'03%s 09(%s)' % (title, url))
                         except Exception as e:
                             print(e)
                         continue
@@ -428,9 +469,15 @@ class IRCbot:
             if key not in self.info['IGNORE'] and curTime - self.activeDict[chan][key] <= minutes * 60:
                 activeList.append(key)
         return activeList
+    
+    def curTime(self):
+        ctime = time.mktime(time.gmtime())
+        return ctime
+                        
+    def privmsg(self,con,msg):
+        self.ircSend('PRIVMSG %s :%s' % (con,msg))
 
     def ircSend(self,msg):
         print(msg)
         self.irc.send(bytes(str(msg)+'\r\n', 'UTF-8'))
-
 IRCbot()
