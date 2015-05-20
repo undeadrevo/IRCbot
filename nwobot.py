@@ -163,8 +163,8 @@ class IRC:
                         else:
                             return False
                         
-                    def privmsg(msg):
-                        self.privmsg(Log['context'],msg)
+                    def PRIVMSG(msg):
+                        self.PRIVMSG(Log['context'],msg)
 
                     # builds last spoke list
                     if Log['context'] not in self.activeDict:
@@ -226,14 +226,14 @@ class IRC:
                             if len(activeUser) > 0:
                                 tipAmount = initAmount // len(activeUser)
                                 if tipAmount >= 10:
-                                    self.privmsg('Doger','mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
-                                    privmsg('%s is tipping %s shibes with Ɖ%s: %s' % (trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
+                                    self.PRIVMSG('Doger','mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
+                                    PRIVMSG('%s is tipping %s shibes with Ɖ%s: %s' % (trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
                                 else:
-                                    self.privmsg('Doger','mtip %s %s' % (trail[1], initAmount))
-                                    privmsg('Sorry %s, not enough to go around. Returning tip.' % trail[1])
+                                    self.PRIVMSG('Doger','mtip %s %s' % (trail[1], initAmount))
+                                    PRIVMSG('Sorry %s, not enough to go around. Returning tip.' % trail[1])
                             else:
-                                self.privmsg('Doger','mtip %s %s' % (trail[1], initAmount))
-                                privmsg('Sorry %s, nobody is active! Returning tip.' % trail[1])
+                                self.PRIVMSG('Doger','mtip %s %s' % (trail[1], initAmount))
+                                PRIVMSG('Sorry %s, nobody is active! Returning tip.' % trail[1])
                         continue
 
                     Commands.GiveCommand(self, Log)
