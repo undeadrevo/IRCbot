@@ -1,8 +1,19 @@
 from bs4 import BeautifulSoup
 import praw, re, requests, time
 
+commands = {}
+
 def about(self,Log):
     self.privmsg(Log['context'],'Hi, I am a WIP bot coded and owned by NewellWorldOrder (or nwo). I\'m not into conspiracy theories so don\'t even bother.')
+commands['!about'] = about
+    
+# returns active users
+def active(self,Log):
+    if len(self.listActive(Log['context'])) == 1:
+        self.privmsg(Log['context'],'There is 1 active user here (only users identified with NickServ are included)')
+    else:
+        self.privmsg(Log['context'],'There are %s active users in here (only users identified with NickServ are included)' % len(self.listActive(Log['context'])))
+commands['!active'] = active
     
 def redditAPI(self):
     try:
@@ -14,11 +25,11 @@ def redditAPI(self):
         self.redditEnabled = False
 
 def reddit(self,Log):
-    curTime = self.curTime()
+    timenow = time.mktime(time.gmtime())
     if not self.redditEnabled:
         self.redditAPI()
-    elif curTime - self.redditLimit <= 2:
-        self.ircSend('NOTICE %s :Please wait %s second(s) due to Reddit API restrictions' % (Log['nick'], str(2 - (curTime - self.redditLimit))))
+    elif timenow - self.redditLimit <= 2:
+        self.ircSend('NOTICE %s :Please wait %s second(s) due to Reddit API restrictions' % (Log['nick'], str(2 - (timenow - self.redditLimit))))
     else:
         try:
             subreddit = Log['trail'][1]
@@ -30,7 +41,8 @@ def reddit(self,Log):
         except:
             print('Error fetching subreddit')
             self.privmsg(Log['context'],'I cannot fetch this subreddit at the moment')
-        self.redditLimit = time.mktime(time.gmtime())
+        self.redditLimit = timenow
+commands['!reddit'] = reddit
 
 def ud(self,Log):
     try:
@@ -48,6 +60,7 @@ def ud(self,Log):
     except:
         print('Error fetching definition')
         self.privmsg(Log['context'],'I cannot fetch this definition at the moment')
+commands['!ud'] = ud
 
 def google(self,Log):
     url = 'https://www.google.com/search?q=%s&btnI' % '+'.join(Log['trail'][1:])
@@ -61,6 +74,7 @@ def google(self,Log):
         if title:
             linkinfo = ' – 03%s' % title
         self.privmsg(Log['context'],'12G04o08o12g03l04e 12%s04%s 08(%s)' % (' '.join(Log['trail'][1:]), linkinfo, r.url))
+commands['!google'] = google
 
 def wiki(self,Log):
     search = '_'.join(Log['trail'][1:])
@@ -83,3 +97,11 @@ def wiki(self,Log):
         if not exerpt[-1] in '!?.':
             exerpt = exerpt + '.'
         self.privmsg(Log['context'],'Wikipedia 03%s – 12%s 11(%s)' % (title, exerpt, r.url))
+commands['!wiki'] = wiki
+
+def GiveCommand(self,Log):
+    if Log['trail'][0].lower() in commands.keys():
+        try:
+            commands[Log['trail'][0].lower()](self,Log)
+        except IndexError:
+            self.ircSend('NOTICE %s :Invalid input for $s' % (Log['nick'],Log['trail'][0].lower()))

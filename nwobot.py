@@ -1,17 +1,12 @@
-#!/usr/bin/env python
 # coding=utf8
 
 from bs4 import BeautifulSoup
 from operator import itemgetter
-import base64, praw, re, requests, socket, ssl, time
-
-# Author = Brian W.
-import Commands, Setup
+import base64, Commands, praw, re, requests, Setup, socket, ssl, time, URLInfo
 
 class IRC:
-    
     def __init__(self):
-        self.LoadConfig()
+        self.Config()
         self.activeDict = {}
         for channel in self.info['CHAN'].split(','):
             self.activeDict[channel] = {}
@@ -19,14 +14,19 @@ class IRC:
         self.Connect()
         self.Main()
         
-    def LoadConfig(self):
+    def Config(self):
         try:
             with open('nwobot.conf', 'r') as file:
                 self.info = eval(file.read())
         except:
-            Setup()
-        with open('users.txt', 'r') as file:
-            self.userDict = eval(file.read())
+            Setup.Setup()
+            self.Config()
+        try:
+            with open('users.txt', 'r') as file:
+                self.userDict = eval(file.read())
+        except:
+            Setup.Setup.userlist()
+            self.Config()
         if self.info['SASL'].lower() == 'y':
             self.SASL = True
         else:
@@ -36,11 +36,13 @@ class IRC:
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         sock.connect((self.info['HOST'], int(self.info['PORT'])))
         self.irc = ssl.wrap_socket(sock)
+        connectMSG = []
         if self.SASL:
-            self.ircSend('CAP LS')
-        self.ircSend('NICK %s' % self.info['NICK'])
-        self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
-        self.ircSend('JOIN %s' % self.info['CHAN'])
+            connectMSG.append('CAP LS')
+        connectMSG.append('NICK %s' % self.info['NICK'])
+        connectMSG.append('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
+        connectMSG.append('JOIN %s' % self.info['CHAN'])
+        self.irc.send(bytes('\r\n'.join(connectMSG)+'\r\n', 'UTF-8'))
         
     def Main(self):
         while True:
@@ -50,7 +52,9 @@ class IRC:
                 if len(line) < 1:
                     continue
                 print (line)
-                curTime = time.mktime(time.gmtime())
+                Log = {}
+                Log['line']=line
+                timenow = time.mktime(time.gmtime())
                 words = str(line).split()
                 prefix = ''
                 nick = ''
@@ -76,6 +80,13 @@ class IRC:
                     if len(trail[0]) > 0 and (trail[0][0] == '+' or trail[0][0] == '-'):
                         CAP = trail[0][0]
                         trail[0] = trail[0][1:]
+                
+                Log['command']=command
+                Log['parameters']=parameters
+                Log['nick']=nick
+                Log['ident']=ident
+                Log['host']=host
+                Log['trail']=trail
 
                 # SASL
                 if self.SASL:
@@ -126,7 +137,7 @@ class IRC:
                     continue
 
                 # parses WHOIS result
-                if command == 330 and len(parameters) > 2:
+                if str(command) == '330' and len(parameters) > 2:
                     if parameters[2] not in self.userDict:
                         self.userDict[parameters[2]] = []
                     if parameters[1] not in self.userDict[parameters[2]]:
@@ -147,13 +158,7 @@ class IRC:
 
                 # checks when PRIVMSG received
                 if command == 'PRIVMSG':
-                    Log = {}
                     Log['context']=parameters[0]
-                    Log['nick']=nick
-                    Log['ident']=ident
-                    Log['host']=host
-                    Log['trail']=trail
-                    Log['line']=line
                     
                     def commandValid(cmd,minwords=1):
                         if len(trail) >= minwords and cmd in trail[0].lower() and len(trail[0]) <= len(cmd) + 1:
@@ -165,21 +170,14 @@ class IRC:
                     context = parameters[0]
 
                     # builds last spoke list
-                    if context not in self.activeDict and context:
+                    if context not in self.activeDict:
                         self.activeDict[context] = {}
-                    self.activeDict[context][nick] = curTime
+                    self.activeDict[context][nick] = timenow
                     validList = []
                     for unicks in self.userDict.values():
                         validList.extend(unicks)
                     if nick not in validList and CAP == '+':
                         self.ircSend('WHOIS %s' % nick)
-
-                    # returns active users
-                    if commandValid('!active'):
-                        if len(self.listActive(context)) == 1:
-                            self.privmsg(context,'There is 1 active user here (only users identified with NickServ are included)')
-                        else:
-                            self.privmsg(context,'There are %s active users in here (only users identified with NickServ are included)')
 
                     # list modifier commands
                     if len(trail) > 2 and (trail[1].lower() == 'add' or trail[1].lower() == 'remove'):
@@ -197,7 +195,7 @@ class IRC:
                                             self.info[addcat] = ','.join(updatedList)
                                 self.updateFile()
                             else:
-                                self.privmsg(context,'NOTICE %s :You are not authorized to perform that command' % issuerNick)
+                                self.ircSend(context,'NOTICE %s :You are not authorized to perform that command' % issuerNick)
 
                         # adds channels to autojoin list and joins them
                         if commandValid('!channel',3):
@@ -241,92 +239,9 @@ class IRC:
                                 self.privmsg(context,'Sorry %s, nobody is active! Returning tip.' % trail[1])
                         continue
 
-                    # checks for reddit command
-                    if commandValid('!reddit',2):
-                        Commands.reddit(self,Log)
-                        continue
-
-                    # Urban Dictionary definitions
-                    if commandValid('!ud',2):
-                        Commands.ud(self,Log)
-                        continue
-
-                    # Google search
-                    if commandValid('!google',2):
-                        Commands.google(self,Log)
-                        continue
-
-                    # allows people to search for wikipedia articles
-                    if commandValid('!wiki',2):
-                        Commands.wiki(self,Log)
-                        continue
+                    Commands.GiveCommand(self, Log)
                     
-                    if commandValid('!about'):
-                        Commands.about(self,Log)
-                        continue
-
-                    # fetches Youtube video info
-                    if 'youtu.be' in line or 'youtube.com' in line:
-                        for w in trail:
-                            if 'youtu.be/' in w:
-                                vidID = w.split('youtu.be/')[1]
-                                break
-                            elif 'youtube.com/watch?v=' in w:
-                                vidID = w.split('youtube.com/watch?v=')[1]
-                                break
-                            elif 'youtube.com/v/' in w:
-                                vidID = w.split('youtube.com/v/')[1]
-                                break
-                        vidID = vidID.split('#')[0].split('&')[0].split('?')[0]
-                        payload = {'part': 'snippet,statistics', 'id': vidID, 'key': self.info['YTAPI']}
-                        r = requests.get('https://www.googleapis.com/youtube/v3/videos', params = payload)
-                        data = r.json()
-                        title = data['items'][0]['snippet']['title']
-                        channel = data['items'][0]['snippet']['channelTitle']
-                        likes = int(data['items'][0]['statistics']['likeCount'])
-                        dislikes = int(data['items'][0]['statistics']['dislikeCount'])
-                        votes = likes + dislikes
-                        if likes and dislikes:
-                            bar = '12' + str(likes) + ' ' + '—' * round(likes*10/votes) + '15' + '—' * round(dislikes*10/votes) + ' ' + str(dislikes)
-                        else:
-                            bar = ''
-                        self.privmsg(context,'You00,04Tube %s 14uploaded by %s – %s' % (title, channel, bar))
-                        continue
-                        
-                    # gets basic massdrop information and also fixes link to include guest_open
-                    if 'https://www.massdrop.com/' in line:
-                        for w in trail:
-                            if 'https://www.massdrop.com/' in w:
-                                url = w
-                                if not '?mode=guest_open' in line:
-                                    url = url + '?mode=guest_open'
-                        try:
-                            r = requests.get(url)
-                            soup = BeautifulSoup(r.text)
-                            title = soup.title.text
-                            cprice = soup.find(class_="current-price")
-                            mrsp = cprice.next_sibling.next_sibling.next_sibling.next_sibling
-                            tRem = soup.find(class_="item-time").text
-                            self.privmsg(context,'Massdrop 02%s – 03Price: %s – 10MRSP: %s – 07%s 12(%s)' % (title, cprice.text, mrsp.text[5:], tRem, url))
-                        except Exception as e:
-                            print(e)
-                        continue
-                        
-                    # general link getting
-                    if 'http://' in line or 'https://' in line:
-                        for w in trail:
-                            if 'http://' in w or 'https://' in w:
-                                url = w
-                                break
-                        try:
-                            r = requests.get(url, timeout=2)
-                            soup = BeautifulSoup(r.text)
-                            title = soup.title.text
-                            if title:
-                                self.privmsg(context,'03%s 09(%s)' % (title, url))
-                        except Exception as e:
-                            print(e)
-                        continue
+                    URLInfo.FetchURL(self, Log)
         
     def updateFile(self):
         with open('nwobot.conf', 'w+') as file:
@@ -337,7 +252,7 @@ class IRC:
     def listActive(self,chan,minutes=10,caller=None):
         activeList = []
         validList = []
-        curTime = time.mktime(time.gmtime())
+        timenow = time.mktime(time.gmtime())
         userDict = list(self.userDict)
         mostRecent = list(dict(sorted(self.activeDict[chan].items(), key=itemgetter(1), reverse=True)).keys())
         for group in userDict:
@@ -354,13 +269,9 @@ class IRC:
                         userDict.remove(group)
                         break
         for key in validList:
-            if key not in self.info['IGNORE'] and curTime - self.activeDict[chan][key] <= minutes * 60:
+            if key not in self.info['IGNORE'] and key not in self.info['NICK'] and timenow - self.activeDict[chan][key] <= minutes * 60:
                 activeList.append(key)
         return activeList
-    
-    def curTime(self):
-        ctime = time.mktime(time.gmtime())
-        return ctime
                         
     def privmsg(self,con,msg):
         self.ircSend('PRIVMSG %s :%s' % (con,msg))
