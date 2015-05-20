@@ -19,13 +19,13 @@ class IRC:
             with open('nwobot.conf', 'r') as file:
                 self.info = eval(file.read())
         except:
-            Setup.Setup()
+            Setup.config()
             self.Config()
         try:
             with open('users', 'r') as file:
                 self.userDict = eval(file.read())
         except:
-            Setup.Setup.userlist()
+            Setup.userlist()
             self.Config()
         if self.info['SASL'].lower() == 'y':
             self.SASL = True
