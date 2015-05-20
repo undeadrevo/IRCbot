@@ -162,13 +162,14 @@ class IRC:
                             return True
                         else:
                             return False
-
-                    context = parameters[0]
+                        
+                    def privmsg(msg):
+                        self.privmsg(Log['context'],msg)
 
                     # builds last spoke list
-                    if context not in self.activeDict:
-                        self.activeDict[context] = {}
-                    self.activeDict[context][nick] = timenow
+                    if Log['context'] not in self.activeDict:
+                        self.activeDict[Log['context']] = {}
+                    self.activeDict[Log['context']][nick] = timenow
                     validList = []
                     for unicks in self.userDict.values():
                         validList.extend(unicks)
@@ -191,7 +192,7 @@ class IRC:
                                             self.info[addcat] = ','.join(updatedList)
                                 self.updateFile()
                             else:
-                                self.ircSend(context,'NOTICE %s :You are not authorized to perform that command' % issuerNick)
+                                self.ircSend(issuerNick,'NOTICE %s :You are not authorized to perform that command' % issuerNick)
 
                         # adds channels to autojoin list and joins them
                         if commandValid('!channel',3):
@@ -221,18 +222,18 @@ class IRC:
                     if nick == 'Doger' and len(trail) > 6:
                         if trail[0] == 'Such' and trail[6].strip('!') == self.info['NICK']:
                             initAmount = int(trail[4][1:])
-                            activeUser = self.listActive(context,10,trail[1])
+                            activeUser = self.listActive(Log['context'],10,trail[1])
                             if len(activeUser) > 0:
                                 tipAmount = initAmount // len(activeUser)
                                 if tipAmount >= 10:
                                     self.privmsg('Doger','mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
-                                    self.privmsg(context,'%s is tipping %s shibes with Ɖ%s: %s' % (trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
+                                    privmsg('%s is tipping %s shibes with Ɖ%s: %s' % (trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
                                 else:
                                     self.privmsg('Doger','mtip %s %s' % (trail[1], initAmount))
-                                    self.privmsg(context,'Sorry %s, not enough to go around. Returning tip.' % trail[1])
+                                    privmsg('Sorry %s, not enough to go around. Returning tip.' % trail[1])
                             else:
                                 self.privmsg('Doger','mtip %s %s' % (trail[1], initAmount))
-                                self.privmsg(context,'Sorry %s, nobody is active! Returning tip.' % trail[1])
+                                privmsg('Sorry %s, nobody is active! Returning tip.' % trail[1])
                         continue
 
                     Commands.GiveCommand(self, Log)
@@ -242,7 +243,7 @@ class IRC:
     def updateFile(self):
         with open('nwobot.conf', 'w+') as file:
             file.write(str(self.info))
-        with open('users.txt', 'w+') as file:
+        with open('users', 'w+') as file:
             file.write(str(self.userDict))
     
     def listActive(self,chan,minutes=10,caller=None):
