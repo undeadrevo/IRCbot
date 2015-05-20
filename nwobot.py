@@ -6,122 +6,8 @@ from operator import itemgetter
 import base64, praw, re, requests, socket, ssl, time
 
 # Author = Brian W.
+import Commands, Setup
 
-class setup:
-    def __init__(self):
-        yesorno = input("Do you want to write a new configuration file? y/N: ")
-        if 'y' in yesorno.lower():
-            while True:
-                newinfo = {}
-                newinfo['HOST'] = input("\nEnter the IRC network that the bot should join: ")
-                newinfo['PORT'] = input("Enter the port that the bot should connect with: ")
-                newinfo['NICK'] = input("Enter the nickname that the bot should use: ")
-                newinfo['SASL'] = input("Do you to authenticate using SASL? (y/N): ")
-                newinfo['PASS'] = input("Enter the password that the bot will authenticate with (if applicable): ")
-                newinfo['NAME'] = input("Enter the realname that the bot should have: ")
-                newinfo['CHAN'] = input("Enter the channels that the bot should join (comma separated): ")
-                newinfo['IGNORE'] = input("Enter the nicks that the bot should ignore (comma separated): ")
-                newinfo['OWNER'] = input("Enter the hosts of the owner(s) (comma separated): ")
-                newinfo['SUDOER'] = input("Enter the hosts to receive extra privileges (comma separated): ")
-                newinfo['YTAPI'] = input("Enter your YouTube Google API key: ")
-                print("\n%s" % self.newinfo)
-                confirm = input("\n Confirm? y/N: ")
-                if 'y' in confirm.lower():
-                    break
-            with open('nwobot.conf', 'w+') as file:
-                file.write(str(newinfo))
-            with open('users.txt', 'w+') as file:
-                userlist = {}
-                file.write(str(userlist))
-
-class reddit:
-    def __init__(self):
-        redditAPI()
-    
-    def redditAPI(self):
-        try:
-            self.r = praw.Reddit('redFetch by u/NewellWorldOrder''Fetches reddit submission links')
-            enableNSFW = self.r.get_random_subreddit(nsfw=True)
-            self.redditEnabled = True
-            self.redditLimit = time.mktime(time.gmtime())
-        except:
-            self.redditEnabled = False
-        pass
-    
-    def command(self,msgrecv):
-        curTime = self.curTime()
-        if not self.redditEnabled:
-            self.redditAPI()
-        elif curTime - self.redditLimit <= 2:
-            self.ircSend('NOTICE %s :Please wait %s second(s) due to Reddit API restrictions' % (msgrecv['nick'], str(2 - (curTime - self.redditLimit))))
-        else:
-            try:
-                subreddit = msgrecv['trail'][1]
-                submission = self.r.get_subreddit(subreddit).get_random_submission()
-                nsfwstatus = ''
-                if submission.over_18:
-                    nsfwstatus = '[NSFW]'
-                self.privmsg(msgrecv['context'],'07Reddit 04%s10r/%s - 12%s 14(%s)' % (nsfwstatus, subreddit, submission.title, submission.url))
-            except:
-                print('Error fetching subreddit')
-                self.privmsg(msgrecv['context'],'I cannot fetch this subreddit at the moment')
-            self.redditLimit = time.mktime(time.gmtime())
-            
-class ud:
-    def command(self,msgrecv):
-        try:
-            r = requests.get('http://api.urbandictionary.com/v0/define?term=%s' % '+'.join(msgrecv['trail'][1:]))
-            data = r.json()
-            if data['result_type'] != 'no_results':
-                definition = ' '.join(data['list'][0]['definition'].splitlines())
-                truncated = ''
-                if len(definition) >= 150:
-                    truncated = '...'
-                    definition = definition[:146]
-                self.privmsg(msgrecv['context'],'Urban08Dictionary 12%s - 06%s%s 10(%s)' % (data['list'][0]['word'], definition[:149], truncated, data['list'][0]['permalink']))
-            else:
-                self.privmsg(msgrecv['context'],'No definition for %s' % ' '.join(msgrecv['trail'][1:]))
-        except:
-            print('Error fetching definition')
-            self.privmsg(msgrecv['context'],'I cannot fetch this definition at the moment')
-            
-class google:
-    def command(self,msgrecv):
-        url = 'https://www.google.com/search?q=%s&btnI' % '+'.join(msgrecv['trail'][1:])
-        r = requests.get('https://www.google.com/search?q=%s&btnI' % '+'.join(msgrecv['trail'][1:]))
-        if '/search?q=%s&btnI' % '+'.join(msgrecv['trail'][1:]) in r.url:
-            self.privmsg(msgrecv['context'],'12G04o08o12g03l04e 06[%s] 13%s' % (' '.join(msgrecv['trail'][1:]), url))
-        else:
-            r2 = requests.get(r.url, timeout=2)
-            soup = BeautifulSoup(r.text)
-            title = soup.title.text
-            if title:
-                linkinfo = ' – 03%s' % title
-            self.privmsg(msgrecv['context'],'12G04o08o12g03l04e 12%s04%s 08(%s)' % (' '.join(msgrecv['trail'][1:]), linkinfo, r.url))
-            
-class wiki:
-    def command(self,msgrecv):
-        search = '_'.join(msgrecv['trail'][1:])
-        url = 'http://en.wikipedia.org/wiki/%s' % search
-        r = requests.get(url)
-        soup = BeautifulSoup(r.text)
-        title = soup.title.text
-        content = soup.select('div > p')[0].text
-        content = re.sub('\'','\\\'',re.sub('\\n','',re.sub('\[.*?\]','',content)))
-        if content == 'Other reasons this message may be displayed:':
-            self.privmsg(msgrecv['context'],'Wikipedia 03%s – 12No article found. Maybe you could write it: 11https://en.wikipedia.org/w/index.php?title=Special:UserLogin&returnto=%s' % (title, search))
-        else:
-            if content == '%s may refer to:' % re.sub('http://en.wikipedia.org/wiki/','',r.url):
-                r = requests.get('http://en.wikipedia.org%s' % soup.find('ul').find('li').find('a')['href'])
-                soup = BeautifulSoup(r.text)
-                title = soup.title.text
-                content = soup.select('div > p')[0].text
-                content = re.sub('\'','\\\'',re.sub('\\n','',re.sub('\[.*?\]','',content)))
-            exerpt = '. '.join(content.split('. ')[:1])
-            if not exerpt[-1] in '!?.':
-                exerpt = exerpt + '.'
-            self.privmsg(msgrecv['context'],'Wikipedia 03%s – 12%s 11(%s)' % (title, exerpt, r.url))
-                
 class IRCbot:
     socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     
@@ -143,7 +29,7 @@ class IRCbot:
         self.allUserList = []
         for channel in self.info['CHAN'].split(','):
             self.activeDict[channel] = {}
-        reddit.redditAPI(self)
+        Commands.redditAPI(self)
         self.connect()
         self.main()
         
@@ -261,13 +147,13 @@ class IRCbot:
 
                 # checks when PRIVMSG received
                 if command == 'PRIVMSG':
-                    msgrecv = {}
-                    msgrecv['context']=parameters[0]
-                    msgrecv['nick']=nick
-                    msgrecv['ident']=ident
-                    msgrecv['host']=host
-                    msgrecv['trail']=trail
-                    msgrecv['line']=line
+                    Log = {}
+                    Log['context']=parameters[0]
+                    Log['nick']=nick
+                    Log['ident']=ident
+                    Log['host']=host
+                    Log['trail']=trail
+                    Log['line']=line
                     
                     def commandValid(cmd,minwords=1):
                         if len(trail) >= minwords and cmd in trail[0].lower() and len(trail[0]) <= len(cmd) + 1:
@@ -357,22 +243,26 @@ class IRCbot:
 
                     # checks for reddit command
                     if commandValid('!reddit',2):
-                        reddit.command(self,msgrecv)
+                        Commands.reddit(self,Log)
                         continue
 
                     # Urban Dictionary definitions
                     if commandValid('!ud',2):
-                        ud.command(self,msgrecv)
+                        Commands.ud(self,Log)
                         continue
 
                     # Google search
                     if commandValid('!google',2):
-                        google.command(self,msgrecv)
+                        Commands.google(self,Log)
                         continue
 
                     # allows people to search for wikipedia articles
                     if commandValid('!wiki',2):
-                        google.command(self,msgrecv)
+                        Commands.wiki(self,Log)
+                        continue
+                        
+                    if commandValid('!about'):
+                        Commands.about(self,Log)
                         continue
 
                     # fetches Youtube video info
