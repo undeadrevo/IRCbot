@@ -4,15 +4,15 @@ import praw, re, requests, time
 commands = {}
 
 def about(self,Log):
-    self.privmsg(Log['context'],'Hi, I am a WIP bot coded and owned by NewellWorldOrder (or nwo). I\'m not into conspiracy theories so don\'t even bother.')
+    self.PRIVMSG(Log['context'],'Hi, I am a WIP bot coded and owned by NewellWorldOrder (or nwo). I\'m not into conspiracy theories so don\'t even bother.')
 commands['!about'] = about
     
 # returns active users
 def active(self,Log):
     if len(self.listActive(Log['context'])) == 1:
-        self.privmsg(Log['context'],'There is 1 active user here (only users identified with NickServ are included)')
+        self.PRIVMSG(Log['context'],'There is 1 active user here (only users identified with NickServ are included)')
     else:
-        self.privmsg(Log['context'],'There are %s active users in here (only users identified with NickServ are included)' % len(self.listActive(Log['context'])))
+        self.PRIVMSG(Log['context'],'There are %s active users in here (only users identified with NickServ are included)' % len(self.listActive(Log['context'])))
 commands['!active'] = active
     
 def redditAPI(self):
@@ -37,10 +37,10 @@ def reddit(self,Log):
             nsfwstatus = ''
             if submission.over_18:
                 nsfwstatus = '[NSFW]'
-            self.privmsg(Log['context'],'07Reddit 04%s10r/%s - 12%s 14(%s)' % (nsfwstatus, subreddit, submission.title, submission.url))
+            self.PRIVMSG(Log['context'],'07Reddit 04%s10r/%s - 12%s 14(%s)' % (nsfwstatus, subreddit, submission.title, submission.url))
         except:
             print('Error fetching subreddit')
-            self.privmsg(Log['context'],'I cannot fetch this subreddit at the moment')
+            self.PRIVMSG(Log['context'],'I cannot fetch this subreddit at the moment')
         self.redditLimit = timenow
 commands['!reddit'] = reddit
 
@@ -54,26 +54,26 @@ def ud(self,Log):
             if len(definition) >= 150:
                 truncated = '...'
                 definition = definition[:146]
-            self.privmsg(Log['context'],'Urban08Dictionary 12%s - 06%s%s 10(%s)' % (data['list'][0]['word'], definition[:149], truncated, data['list'][0]['permalink']))
+            self.PRIVMSG(Log['context'],'Urban08Dictionary 12%s - 06%s%s 10(%s)' % (data['list'][0]['word'], definition[:149], truncated, data['list'][0]['permalink']))
         else:
-            self.privmsg(Log['context'],'No definition for %s' % ' '.join(Log['trail'][1:]))
+            self.PRIVMSG(Log['context'],'No definition for %s' % ' '.join(Log['trail'][1:]))
     except:
         print('Error fetching definition')
-        self.privmsg(Log['context'],'I cannot fetch this definition at the moment')
+        self.PRIVMSG(Log['context'],'I cannot fetch this definition at the moment')
 commands['!ud'] = ud
 
 def google(self,Log):
     url = 'https://www.google.com/search?q=%s&btnI' % '+'.join(Log['trail'][1:])
     r = requests.get('https://www.google.com/search?q=%s&btnI' % '+'.join(Log['trail'][1:]))
     if '/search?q=%s&btnI' % '+'.join(Log['trail'][1:]) in r.url:
-        self.privmsg(Log['context'],'12G04o08o12g03l04e 06[%s] 13%s' % (' '.join(Log['trail'][1:]), url))
+        self.PRIVMSG(Log['context'],'12G04o08o12g03l04e 06[%s] 13%s' % (' '.join(Log['trail'][1:]), url))
     else:
         r2 = requests.get(r.url, timeout=2)
         soup = BeautifulSoup(r.text)
         title = soup.title.text
         if title:
             linkinfo = ' – 03%s' % title
-        self.privmsg(Log['context'],'12G04o08o12g03l04e 12%s04%s 08(%s)' % (' '.join(Log['trail'][1:]), linkinfo, r.url))
+        self.PRIVMSG(Log['context'],'12G04o08o12g03l04e 12%s04%s 08(%s)' % (' '.join(Log['trail'][1:]), linkinfo, r.url))
 commands['!google'] = google
 
 def wiki(self,Log):
@@ -85,7 +85,7 @@ def wiki(self,Log):
     content = soup.select('div > p')[0].text
     content = re.sub('\'','\\\'',re.sub('\\n','',re.sub('\[.*?\]','',content)))
     if content == 'Other reasons this message may be displayed:':
-        self.privmsg(Log['context'],'Wikipedia 03%s – 12No article found. Maybe you could write it: 11https://en.wikipedia.org/w/index.php?title=Special:UserLogin&returnto=%s' % (title, search))
+        self.PRIVMSG(Log['context'],'Wikipedia 03%s – 12No article found. Maybe you could write it: 11https://en.wikipedia.org/w/index.php?title=Special:UserLogin&returnto=%s' % (title, search))
     else:
         if content == '%s may refer to:' % re.sub('http://en.wikipedia.org/wiki/','',r.url):
             r = requests.get('http://en.wikipedia.org%s' % soup.find('ul').find('li').find('a')['href'])
@@ -96,7 +96,7 @@ def wiki(self,Log):
         exerpt = '. '.join(content.split('. ')[:1])
         if not exerpt[-1] in '!?.':
             exerpt = exerpt + '.'
-        self.privmsg(Log['context'],'Wikipedia 03%s – 12%s 11(%s)' % (title, exerpt, r.url))
+        self.PRIVMSG(Log['context'],'Wikipedia 03%s – 12%s 11(%s)' % (title, exerpt, r.url))
 commands['!wiki'] = wiki
 
 def GiveCommand(self,Log):

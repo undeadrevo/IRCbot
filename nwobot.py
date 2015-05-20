@@ -80,13 +80,6 @@ class IRC:
                     if len(trail[0]) > 0 and (trail[0][0] == '+' or trail[0][0] == '-'):
                         CAP = trail[0][0]
                         trail[0] = trail[0][1:]
-                
-                Log['command']=command
-                Log['parameters']=parameters
-                Log['nick']=nick
-                Log['ident']=ident
-                Log['host']=host
-                Log['trail']=trail
 
                 # SASL
                 if self.SASL:
@@ -158,6 +151,10 @@ class IRC:
 
                 # checks when PRIVMSG received
                 if command == 'PRIVMSG':
+                    Log['nick']=nick
+                    Log['ident']=ident
+                    Log['host']=host
+                    Log['trail']=trail
                     Log['context']=parameters[0]
                     
                     def commandValid(cmd,minwords=1):
@@ -166,7 +163,6 @@ class IRC:
                         else:
                             return False
 
-                    # gets the current context
                     context = parameters[0]
 
                     # builds last spoke list
@@ -273,7 +269,7 @@ class IRC:
                 activeList.append(key)
         return activeList
                         
-    def privmsg(self,con,msg):
+    def PRIVMSG(self,con,msg):
         self.ircSend('PRIVMSG %s :%s' % (con,msg))
 
     def ircSend(self,msg):
