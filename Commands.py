@@ -1,3 +1,5 @@
+# coding=utf8
+
 from bs4 import BeautifulSoup
 import praw, re, requests, time
 

@@ -1,4 +1,4 @@
-
+# coding=utf8
 
 class Setup():
     def __init__(self):
