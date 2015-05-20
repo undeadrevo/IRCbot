@@ -3,21 +3,36 @@ import requests
 
 sites = {}
 
+def youtubeKey():
+    try:
+        with open('youtubeAPI', 'r') as file:
+            for line in file:
+                if line.strip()[0] != '#':
+                    APIkey = line.strip()
+                    return APIkey
+    except:
+        with open('youtubeAPI', 'w+') as file:
+            file.write('# Insert your YouTube API key below')
+        return None
+
 def youtube(self,Log,url):
     vidID = url.split('youtu.be/')[-1].split('youtube.com/watch?v=')[-1].split('youtube.com/v/')[-1].split('#')[0].split('&')[0].split('?')[0]
-    payload = {'part': 'snippet,statistics', 'id': vidID, 'key': self.info['YTAPI']}
-    r = requests.get('https://www.googleapis.com/youtube/v3/videos', params = payload)
-    data = r.json()
-    title = data['items'][0]['snippet']['title']
-    channel = data['items'][0]['snippet']['channelTitle']
-    likes = int(data['items'][0]['statistics']['likeCount'])
-    dislikes = int(data['items'][0]['statistics']['dislikeCount'])
-    votes = likes + dislikes
-    if likes and dislikes:
-        bar = '12' + str(likes) + ' ' + '—' * round(likes*10/votes) + '15' + '—' * round(dislikes*10/votes) + ' ' + str(dislikes)
-    else:
-        bar = ''
-    self.privmsg(Log['context'],'You00,04Tube %s 14uploaded by %s – %s' % (title, channel, bar))
+    payload = {'part': 'snippet,statistics', 'id': vidID, 'key': youtubeKey()}
+    try:
+        r = requests.get('https://www.googleapis.com/youtube/v3/videos', params = payload)
+        data = r.json()
+        title = data['items'][0]['snippet']['title']
+        channel = data['items'][0]['snippet']['channelTitle']
+        likes = int(data['items'][0]['statistics']['likeCount'])
+        dislikes = int(data['items'][0]['statistics']['dislikeCount'])
+        votes = likes + dislikes
+        if likes and dislikes:
+            bar = '12' + str(likes) + ' ' + '—' * round(likes*10/votes) + '15' + '—' * round(dislikes*10/votes) + ' ' + str(dislikes)
+        else:
+            bar = ''
+        self.PRIVMSG(Log['context'],'You00,04Tube %s 14uploaded by %s – %s' % (title, channel, bar))
+    except Exception as e:
+        print(e)
 sites['youtu.be/'] = youtube
 sites['youtube.com/'] = youtube
 
@@ -31,7 +46,7 @@ def massdrop(self,Log,url):
         cprice = soup.find(class_="current-price")
         mrsp = cprice.next_sibling.next_sibling.next_sibling.next_sibling
         tRem = soup.find(class_="item-time").text
-        self.privmsg(Log['context'],'Massdrop 02%s – 03Price: %s – 10MRSP: %s – 07%s 12(%s)' % (title, cprice.text, mrsp.text[5:], tRem, url))
+        self.PRIVMSG(Log['context'],'Massdrop 02%s – 03Price: %s – 10MRSP: %s – 07%s 12(%s)' % (title, cprice.text, mrsp.text[5:], tRem, url))
     except Exception as e:
         print(e)
 sites['massdrop.com/'] = massdrop
@@ -42,7 +57,7 @@ def basic(self,Log,url):
         soup = BeautifulSoup(r.text)
         title = soup.title.text
         if title:
-            self.privmsg(Log['context'],'03%s 09(%s)' % (title, url))
+            self.PRIVMSG(Log['context'],'03%s 09(%s)' % (title, url))
     except Exception as e:
         print(e)
         
