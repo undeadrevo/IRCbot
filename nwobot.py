@@ -8,43 +8,42 @@ import base64, praw, re, requests, socket, ssl, time
 # Author = Brian W.
 import Commands, Setup
 
-class IRCbot:
-    socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+class IRC:
     
     def __init__(self):
+        self.LoadConfig()
+        self.activeDict = {}
+        for channel in self.info['CHAN'].split(','):
+            self.activeDict[channel] = {}
+        Commands.redditAPI(self)
+        self.Connect()
+        self.Main()
+        
+    def LoadConfig(self):
         try:
             with open('nwobot.conf', 'r') as file:
-                f = file.read()
-                self.info = eval(f)
+                self.info = eval(file.read())
         except:
-            setup()
+            Setup()
         with open('users.txt', 'r') as file:
-            f = file.read()
-            self.userDict = eval(f)
+            self.userDict = eval(file.read())
         if self.info['SASL'].lower() == 'y':
             self.SASL = True
         else:
             self.SASL = False
-        self.activeDict = {}
-        self.allUserList = []
-        for channel in self.info['CHAN'].split(','):
-            self.activeDict[channel] = {}
-        Commands.redditAPI(self)
-        self.connect()
-        self.main()
         
-    def connect(self):
-        self.socket.connect((self.info['HOST'], int(self.info['PORT'])))
-        self.irc = ssl.wrap_socket(self.socket)
+    def Connect(self):
+        sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        sock.connect((self.info['HOST'], int(self.info['PORT'])))
+        self.irc = ssl.wrap_socket(sock)
         if self.SASL:
             self.ircSend('CAP LS')
         self.ircSend('NICK %s' % self.info['NICK'])
         self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
         self.ircSend('JOIN %s' % self.info['CHAN'])
         
-    def main(self):
+    def Main(self):
         while True:
-#            try:
             serverRaw = self.irc.recv(4096).decode('utf-8')
             serverOut = str(serverRaw).split('\n')
             for line in serverOut:
@@ -80,12 +79,13 @@ class IRCbot:
 
                 # SASL
                 if self.SASL:
-                    if command == 'CAP' and parameters [0] == '*' and parameters[1] == 'LS':
-                        self.ircSend('CAP REQ :%s' % ' '.join(trail))
-                        continue
-                    if command == 'CAP' and parameters [1] == 'ACK':
-                        self.ircSend('AUTHENTICATE PLAIN')
-                        continue
+                    if command == 'CAP':
+                        if parameters [0] == '*' and parameters[1] == 'LS':
+                            self.ircSend('CAP REQ :%s' % ' '.join(trail))
+                            continue
+                        if parameters [1] == 'ACK':
+                            self.ircSend('AUTHENTICATE PLAIN')
+                            continue
                     if command == 'AUTHENTICATE' and parameters[0] == '+':
                         sasl_token = '\0'.join((self.info['NICK'], self.info['NICK'], self.info['PASS']))
                         self.ircSend('AUTHENTICATE %s' % base64.b64encode(sasl_token.encode('utf-8')).decode('utf-8'))
@@ -126,7 +126,7 @@ class IRCbot:
                     continue
 
                 # parses WHOIS result
-                if str(command) == '330' and len(parameters) > 2:
+                if command == 330 and len(parameters) > 2:
                     if parameters[2] not in self.userDict:
                         self.userDict[parameters[2]] = []
                     if parameters[1] not in self.userDict[parameters[2]]:
@@ -260,7 +260,7 @@ class IRCbot:
                     if commandValid('!wiki',2):
                         Commands.wiki(self,Log)
                         continue
-                        
+                    
                     if commandValid('!about'):
                         Commands.about(self,Log)
                         continue
@@ -327,8 +327,6 @@ class IRCbot:
                         except Exception as e:
                             print(e)
                         continue
-#            except Exception as e:
-#                print(e)
         
     def updateFile(self):
         with open('nwobot.conf', 'w+') as file:
@@ -370,4 +368,4 @@ class IRCbot:
     def ircSend(self,msg):
         print(msg)
         self.irc.send(bytes(str(msg)+'\r\n', 'UTF-8'))
-IRCbot()
+IRC()

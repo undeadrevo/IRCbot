@@ -1,9 +1,6 @@
 from bs4 import BeautifulSoup
 import praw, re, requests, time
 
-def __init__(self):
-    redditAPI()
-
 def about(self,Log):
     self.privmsg(Log['context'],'Hi, I am a WIP bot coded and owned by NewellWorldOrder (or nwo). I\'m not into conspiracy theories so don\'t even bother.')
     
@@ -15,7 +12,6 @@ def redditAPI(self):
         self.redditLimit = time.mktime(time.gmtime())
     except:
         self.redditEnabled = False
-    pass
 
 def reddit(self,Log):
     curTime = self.curTime()
