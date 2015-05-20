@@ -22,6 +22,6 @@ class Setup():
             file.write(str(conf))
             
     def userlist():
-        with open('users.txt', 'w+') as file:
+        with open('users', 'w+') as file:
             userlist = {}
             file.write(str(userlist))

@@ -22,7 +22,7 @@ class IRC:
             Setup.Setup()
             self.Config()
         try:
-            with open('users.txt', 'r') as file:
+            with open('users', 'r') as file:
                 self.userDict = eval(file.read())
         except:
             Setup.Setup.userlist()
