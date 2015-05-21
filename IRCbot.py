@@ -21,11 +21,10 @@ class IRC:
         self.irc = ssl.wrap_socket(sock)
         connectMSG = []
         if self.SASL:
-            connectMSG.append('CAP LS')
-        connectMSG.append('NICK %s' % self.info['NICK'])
-        connectMSG.append('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
-        connectMSG.append('JOIN %s' % self.info['CHAN'])
-        self.irc.send(bytes('\r\n'.join(connectMSG)+'\r\n', 'UTF-8'))
+            self.ircSend('CAP LS')
+        self.ircSend('NICK %s' % self.info['NICK'])
+        self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
+        self.ircSend('JOIN %s' % self.info['CHAN'])
         
     def Main(self):
         while True:
@@ -85,7 +84,7 @@ class IRC:
                     elif Log['nick'] not in self.activeDict[Log['parameters'][0]]:
                         self.activeDict[Log['parameters'][0]][Log['nick']] = 0
                         if Log['nick'] not in list(self.userDict.values()):
-                            self.ircSend('WHOIS %s' % Log['trail'][0])
+                            self.ircSend('WHOIS %s' % Log['nick'])
                     continue
 
                 # checks nick change
@@ -228,7 +227,7 @@ class IRC:
         self.ircSend('PRIVMSG %s :%s' % (context, message))
 
     def ircSend(self, message):
-        print('%s %s' % (time.time(), message))
+        print('%s %s' % (time.strftime('%H:%M:%S', time.gmtime(time.time())), message))
         self.irc.send(bytes('%s\r\n' % message, 'UTF-8'))
         
 IRC()
