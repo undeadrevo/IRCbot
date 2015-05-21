@@ -102,7 +102,7 @@ class IRC:
                         self.activeDict[Log['parameters'][-1]] = {}
                     for names in Log['trail']:
                         names = names.lstrip('@+')
-                        if names ! =  self.info['NICK']:
+                        if names !=  self.info['NICK']:
                             self.activeDict[Log['parameters'][-1]][names] = 0
                     continue
                     
@@ -110,7 +110,7 @@ class IRC:
                 if (str(Log['command']) == '330' or str(Log['command']) == '354') and len(Log['parameters']) > 2:
                     if Log['parameters'][2] not in self.userDict:
                         self.userDict[Log['parameters'][2]] = []
-                    if Log['parameters'][1] not in self.userDict[Log['parameters'][2]] and Log['parameters'][1] ! =  self.info['NICK']:
+                    if Log['parameters'][1] not in self.userDict[Log['parameters'][2]] and Log['parameters'][1] !=  self.info['NICK']:
                         self.userDict[Log['parameters'][2]].append(Log['parameters'][1])
                     self.updateFile()
                     continue
@@ -131,7 +131,7 @@ class IRC:
                     Log['context'] = Log['parameters'][0]
                     
                     def commandValid(cmd, minwords = 1):
-                        if len(Log['trail']) > =  minwords and cmd in Log['trail'][0].lower() and len(Log['trail'][0]) < =  len(cmd) + 1:
+                        if len(Log['trail']) >=  minwords and cmd in Log['trail'][0].lower() and len(Log['trail'][0]) <=  len(cmd) + 1:
                             return True
                         else:
                             return False
@@ -208,7 +208,7 @@ class IRC:
         mostRecent = list(dict(sorted(self.activeDict[chan].items(), key = itemgetter(1), reverse = True)).keys())
         for group in userDict:
             nickList = self.userDict[group]
-            if caller ! =  None and caller in nickList:
+            if caller !=  None and caller in nickList:
                 userDict.remove(group)
                 break
         for rnick in mostRecent:
@@ -220,7 +220,7 @@ class IRC:
                         userDict.remove(group)
                         break
         for key in validList:
-            if key not in self.info['IGNORE'].split(',') and key ! =  self.info['NICK'] and key not in exclude and (timenow - self.activeDict[chan][key] < =  minutes * 60 or full):
+            if key not in self.info['IGNORE'].split(',') and key !=  self.info['NICK'] and key not in exclude and (timenow - self.activeDict[chan][key] <=  minutes * 60 or full):
                     activeList.append(key)
         return activeList
                         
