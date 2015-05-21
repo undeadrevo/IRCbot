@@ -10,7 +10,7 @@ def redditAPI(self):
         self.r = praw.Reddit('redFetch by u/NewellWorldOrder''Fetches reddit submission links')
         enableNSFW = self.r.get_random_subreddit(nsfw=True)
         self.redditEnabled = True
-        self.redditLimit = time.mktime(time.gmtime())
+        self.redditLimit = time.time()
     except:
         self.redditEnabled = False
     
@@ -31,11 +31,10 @@ def activelist(self,Log):
 commands['!activelist'] = activelist
 
 def reddit(self,Log):
-    timenow = time.mktime(time.gmtime())
     if not self.redditEnabled:
         self.redditAPI()
-    elif timenow - self.redditLimit <= 2:
-        self.ircSend('NOTICE %s :Please wait %s second(s) due to Reddit API restrictions' % (Log['nick'], str(2 - (timenow - self.redditLimit))))
+    elif Log['time'] - self.redditLimit <= 2:
+        self.ircSend('NOTICE %s :Please wait %s second(s) due to Reddit API restrictions' % (Log['nick'], str(round(2 - (Log['time'] - self.redditLimit), 2))))
     else:
         r = self.r
         try:
@@ -71,7 +70,7 @@ def reddit(self,Log):
         except:
             print('Error fetching subreddit')
             self.PRIVMSG(Log['context'],'I cannot fetch this subreddit at the moment')
-        self.redditLimit = timenow
+        self.redditLimit = Log['time']
 commands['!reddit'] = reddit
 
 def ud(self,Log):
