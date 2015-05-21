@@ -146,14 +146,15 @@ class IRC:
                     if parameters[-1] not in self.activeDict:
                         self.activeDict[parameters[-1]] = {}
                     for names in trail:
-                        self.activeDict[parameters[-1]][names] = 0
+                        if names != self.info['NICK']:
+                            self.activeDict[parameters[-1]][names] = 0
                     continue
                     
                 # parses WHOIS result
                 if (str(command) == '330' or str(command) == '354') and len(parameters) > 2:
                     if parameters[2] not in self.userDict:
                         self.userDict[parameters[2]] = []
-                    if parameters[1] not in self.userDict[parameters[2]]:
+                    if parameters[1] not in self.userDict[parameters[2]] and parameters[1] != self.info['NICK']:
                         self.userDict[parameters[2]].append(parameters[1])
                     self.updateFile()
                     continue
@@ -186,7 +187,7 @@ class IRC:
                     # builds last spoke list
                     if Log['context'] not in self.activeDict:
                         self.activeDict[Log['context']] = {}
-                    self.activeDict[Log['context']][nick] = timenow
+                    self.activeDict[Log['context']][Log['nick']] = timenow
                     validList = []
                     for group in self.userDict.values():
                         validList.extend(group)
@@ -271,4 +272,5 @@ class IRC:
     def ircSend(self,msg):
         print(msg)
         self.irc.send(bytes(str(msg)+'\r\n', 'UTF-8'))
+        
 IRC()

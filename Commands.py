@@ -26,6 +26,10 @@ def active(self,Log):
         self.PRIVMSG(Log['context'],'There are %s active users in here (only users identified with NickServ are included)' % len(self.listActive(Log['context'])))
 commands['!active'] = active
 
+def activelist(self,Log):
+    self.ircSend('NOTICE '+Log['nick']+' :%s' % ' '.join(self.listActive(Log['context'])))
+commands['!activelist'] = activelist
+
 def reddit(self,Log):
     timenow = time.mktime(time.gmtime())
     if not self.redditEnabled:
