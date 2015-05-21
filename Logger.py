@@ -13,7 +13,6 @@ def interpret(line):
     Log['parameters'] = []
     Log['trail'] = []
     words = str(line).split()
-    parameters = []
     if line[0] == ':':
         prefix = words.pop(0)[1:]
         if '!' in prefix and '@' in prefix:
@@ -33,8 +32,6 @@ def interpret(line):
         if len(Log['trail'][0]) > 0 and (Log['trail'][0][0] == '+' or Log['trail'][0][0] == '-'):
             CAP = Log['trail'][0][0]
             Log['trail'][0] = Log['trail'][0][1:]
-    try:
-        print('%s%s %s %s :%s' % (time.strftime('%H:%M:%S', time.gmtime(Log['time'])), ' %s' % prefix, Log['command'], ' '.join(Log['parameters']), ' '.join(Log['trail'])))
-    except:
-        print('%s%s %s :%s' % (time.strftime('%H:%M:%S', time.gmtime(Log['time'])), Log['command'], ' '.join(Log['parameters']), ' '.join(Log['trail'])))
+            
+    print('%s %s' % (time.strftime('%H:%M:%S', time.gmtime(Log['time'])), Log['line']))
     return Log
