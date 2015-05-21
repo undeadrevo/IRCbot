@@ -2,11 +2,11 @@
 
 from bs4 import BeautifulSoup
 from operator import itemgetter
-import base64, Commands, praw, re, requests, Setup, Soaker, socket, ssl, time, URLInfo
+import base64, Commands, Config, praw, re, requests, Soaker, socket, ssl, time, URLInfo
 
 class IRC:
     def __init__(self):
-        self.Config()
+        Config.config(self)
         self.activeDict = {}
         for channel in self.info['CHAN'].split(','):
             self.activeDict[channel] = {}
@@ -14,24 +14,6 @@ class IRC:
         Soaker.Soaker(self)
         self.Connect()
         self.Main()
-        
-    def Config(self):
-        try:
-            with open('nwobot.conf', 'r') as file:
-                self.info = eval(file.read())
-        except:
-            Setup.config()
-            self.Config()
-        try:
-            with open('users', 'r') as file:
-                self.userDict = eval(file.read())
-        except:
-            Setup.userlist()
-            self.Config()
-        if self.info['SASL'].lower() == 'y':
-            self.SASL = True
-        else:
-            self.SASL = False
         
     def Connect(self):
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)

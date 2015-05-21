@@ -1,6 +1,24 @@
 # coding=utf8
 
-def config():
+def config(self):
+    try:
+        with open('nwobot.conf', 'r') as file:
+            self.info = eval(file.read())
+    except:
+        Setup.setup()
+        self.Config()
+    try:
+        with open('users', 'r') as file:
+            self.userDict = eval(file.read())
+    except:
+        Setup.userlist()
+        self.Config()
+    if self.info['SASL'].lower() == 'y':
+        self.SASL = True
+    else:
+        self.SASL = False
+
+def setup():
     unconfirmed = True
     while unconfirmed:
         conf = {}
