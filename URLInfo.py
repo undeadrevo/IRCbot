@@ -44,11 +44,11 @@ def massdrop(self,Log,url):
     try:
         r = requests.get(url)
         soup = BeautifulSoup(r.text)
-        title = soup.title.text
+        title = soup.title.text.strip()
         cprice = soup.find(class_="current-price")
         mrsp = cprice.next_sibling.next_sibling.next_sibling.next_sibling
         tRem = soup.find(class_="item-time").text
-        self.PRIVMSG(Log['context'],'Massdrop 02%s – 03Price: %s – 10MRSP: %s – 07%s 12(%s)' % (title, cprice.text, mrsp.text[5:], tRem, url))
+        self.PRIVMSG(Log['context'],'Massdrop 02%s – 03Price: %s – 10MRSP: %s – 07%s 12( %s )' % (title, cprice.text, mrsp.text[5:], tRem, url))
     except Exception as e:
         print(e)
 sites['massdrop.com/'] = massdrop
@@ -57,9 +57,9 @@ def basic(self,Log,url):
     try:
         r = requests.get(url, timeout=2)
         soup = BeautifulSoup(r.text)
-        title = soup.title.text
+        title = soup.title.text.strip()
         if title:
-            self.PRIVMSG(Log['context'],'03%s 09(%s)' % (title, url))
+            self.PRIVMSG(Log['context'],'03%s 09( %s )' % (title, url))
     except Exception as e:
         print(e)
         
