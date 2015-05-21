@@ -182,9 +182,6 @@ class IRC:
                             return True
                         else:
                             return False
-                        
-                    def PRIVMSG(msg):
-                        self.PRIVMSG(Log['context'],msg)
 
                     # builds last spoke list
                     if Log['context'] not in self.activeDict:
@@ -231,12 +228,6 @@ class IRC:
                         if commandValid('!admin',3):
                             addRemoveList(host,nick,trail[1].lower(),trail[2:],'SUDOER')
                             continue
-
-                    # executes command
-                    if commandValid('!nwodo',3):
-                        if host in self.info['SUDOER'].split(',') or host in self.info['OWNER'].split(','):
-                            self.ircSend(' '.join(trail[1:]))
-                        continue
                                 
                     Soaker.Handler(self, Log)
 

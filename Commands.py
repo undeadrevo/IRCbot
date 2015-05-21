@@ -5,18 +5,6 @@ import praw, re, requests, time
 
 commands = {}
 
-def about(self,Log):
-    self.PRIVMSG(Log['context'],'Hi, I am a WIP bot coded and owned by NewellWorldOrder (or nwo). I\'m not into conspiracy theories so don\'t even bother.')
-commands['!about'] = about
-    
-# returns active users
-def active(self,Log):
-    if len(self.listActive(Log['context'])) == 1:
-        self.PRIVMSG(Log['context'],'There is 1 active user here (only users identified with NickServ are included)')
-    else:
-        self.PRIVMSG(Log['context'],'There are %s active users in here (only users identified with NickServ are included)' % len(self.listActive(Log['context'])))
-commands['!active'] = active
-    
 def redditAPI(self):
     try:
         self.r = praw.Reddit('redFetch by u/NewellWorldOrder''Fetches reddit submission links')
@@ -25,6 +13,18 @@ def redditAPI(self):
         self.redditLimit = time.mktime(time.gmtime())
     except:
         self.redditEnabled = False
+    
+def nwodo(self,Log):
+    if Log['host'] in self.info['SUDOER'].split(',') or Log['host'] in self.info['OWNER'].split(','):
+        self.ircSend(' '.join(Log['trail'][1:]))
+commands['!nwodo'] = nwodo
+        
+def active(self,Log):
+    if len(self.listActive(Log['context'])) == 1:
+        self.PRIVMSG(Log['context'],'There is 1 active user here (only users identified with NickServ are included)')
+    else:
+        self.PRIVMSG(Log['context'],'There are %s active users in here (only users identified with NickServ are included)' % len(self.listActive(Log['context'])))
+commands['!active'] = active
 
 def reddit(self,Log):
     timenow = time.mktime(time.gmtime())
@@ -100,6 +100,19 @@ def wiki(self,Log):
             exerpt = exerpt + '.'
         self.PRIVMSG(Log['context'],'Wikipedia 03%s – 12%s 11(%s)' % (title, exerpt, r.url))
 commands['!wiki'] = wiki
+
+def help_(self,Log):
+    self.PRIVMSG(Log['context'],'My commands are: %s' % (' '.join(commands)))
+commands['!help'] = help_
+        
+def about(self,Log):
+    try:
+        with open('about.txt', 'r') as file:
+            self.PRIVMSG(Log['context'],file.readline())
+    except:
+        with open('about.txt', 'w+') as file:
+            file.write('Hi, I\'m an IRC bot written by NewellWorldOrder/nwo')
+commands['!about'] = about
 
 def Handler(self,Log):
     if Log['trail'][0].lower() in commands.keys():
