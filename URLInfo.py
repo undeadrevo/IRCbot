@@ -63,7 +63,7 @@ def basic(self,Log,url):
     except Exception as e:
         print(e)
         
-def FetchURL(self,Log):
+def Handler(self,Log):
     if 'http://' in Log['line'] or 'https://' in Log['line']:
         for w in Log['trail']:
             if 'http' in w and '://' in w:

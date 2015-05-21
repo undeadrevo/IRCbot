@@ -101,7 +101,7 @@ def wiki(self,Log):
         self.PRIVMSG(Log['context'],'Wikipedia 03%s – 12%s 11(%s)' % (title, exerpt, r.url))
 commands['!wiki'] = wiki
 
-def GiveCommand(self,Log):
+def Handler(self,Log):
     if Log['trail'][0].lower() in commands.keys():
         try:
             commands[Log['trail'][0].lower()](self,Log)

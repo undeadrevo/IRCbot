@@ -2,7 +2,7 @@
 
 from bs4 import BeautifulSoup
 from operator import itemgetter
-import base64, Commands, praw, re, requests, Setup, socket, ssl, time, URLInfo
+import base64, Commands, praw, re, requests, Setup, Soaker, socket, ssl, time, URLInfo
 
 class IRC:
     def __init__(self):
@@ -11,6 +11,7 @@ class IRC:
         for channel in self.info['CHAN'].split(','):
             self.activeDict[channel] = {}
         Commands.redditAPI(self)
+        Soaker.Soaker(self)
         self.Connect()
         self.Main()
         
@@ -81,6 +82,11 @@ class IRC:
                         CAP = trail[0][0]
                         trail[0] = trail[0][1:]
 
+                # reply to pings
+                if command == 'PING':
+                    self.ircSend('PONG :%s' % trail[0])
+                    continue
+
                 # SASL
                 if self.SASL:
                     if command == 'CAP':
@@ -99,11 +105,6 @@ class IRC:
                         self.ircSend('JOIN %s' % self.info['CHAN'])
                         continue
 
-                # reply to pings
-                if command == 'PING':
-                    self.ircSend('PONG :%s' % trail[0])
-                    continue
-
                 # checks when identified with nickserv
                 if command == 'NOTICE' and nick == 'NickServ':
                     if len(trail) > 3:
@@ -120,6 +121,17 @@ class IRC:
                         self.info['CHAN'] = str(self.info['CHAN'])+','+trail[0]
                         self.updateFile()
                         self.ircSend('JOIN %s' % self.info['CHAN'])
+                        
+                # checks channel join
+                if command == 'JOIN':
+                    if nick == self.info['NICK']:
+                        self.activeDict[parameters[0]] = {}
+                        self.ircSend('WHO %s %%na' % parameters[0])
+                    elif nick not in self.activeDict[parameters[0]]:
+                        self.activeDict[parameters[0]][nick] = 0
+                        if nick not in self.userDict.values():
+                            self.ircSend('WHOIS %s' % trail[0])
+                    continue
 
                 # checks nick change
                 if command == 'NICK':
@@ -129,8 +141,16 @@ class IRC:
                         self.ircSend('WHOIS %s' % trail[0])
                     continue
 
+                # parses NAMES result
+                if str(command) == '353' and len(parameters) > 2:
+                    if parameters[-1] not in self.activeDict:
+                        self.activeDict[parameters[-1]] = {}
+                    for names in trail:
+                        self.activeDict[parameters[-1]][names] = 0
+                    continue
+                    
                 # parses WHOIS result
-                if str(command) == '330' and len(parameters) > 2:
+                if (str(command) == '330' or str(command) == '354') and len(parameters) > 2:
                     if parameters[2] not in self.userDict:
                         self.userDict[parameters[2]] = []
                     if parameters[1] not in self.userDict[parameters[2]]:
@@ -171,8 +191,8 @@ class IRC:
                         self.activeDict[Log['context']] = {}
                     self.activeDict[Log['context']][nick] = timenow
                     validList = []
-                    for unicks in self.userDict.values():
-                        validList.extend(unicks)
+                    for group in self.userDict.values():
+                        validList.extend(group)
                     if nick not in validList and CAP == '+':
                         self.ircSend('WHOIS %s' % nick)
 
@@ -217,28 +237,12 @@ class IRC:
                         if host in self.info['SUDOER'].split(',') or host in self.info['OWNER'].split(','):
                             self.ircSend(' '.join(trail[1:]))
                         continue
+                                
+                    Soaker.Handler(self, Log)
 
-                    # soaker!
-                    if nick == 'Doger' and len(trail) > 6:
-                        if trail[0] == 'Such' and trail[6].strip('!') == self.info['NICK']:
-                            initAmount = int(trail[4][1:])
-                            activeUser = self.listActive(Log['context'],10,trail[1])
-                            if len(activeUser) > 0:
-                                tipAmount = initAmount // len(activeUser)
-                                if tipAmount >= 10:
-                                    self.PRIVMSG('Doger','mtip %s %s' % ((' %s ' % str(tipAmount)).join(activeUser),str(tipAmount)))
-                                    PRIVMSG('%s is tipping %s shibes with Ɖ%s: %s' % (trail[1], len(activeUser), tipAmount, ', '.join(activeUser)))
-                                else:
-                                    self.PRIVMSG('Doger','mtip %s %s' % (trail[1], initAmount))
-                                    PRIVMSG('Sorry %s, not enough to go around. Returning tip.' % trail[1])
-                            else:
-                                self.PRIVMSG('Doger','mtip %s %s' % (trail[1], initAmount))
-                                PRIVMSG('Sorry %s, nobody is active! Returning tip.' % trail[1])
-                        continue
-
-                    Commands.GiveCommand(self, Log)
+                    Commands.Handler(self, Log)
                     
-                    URLInfo.FetchURL(self, Log)
+                    URLInfo.Handler(self, Log)
         
     def updateFile(self):
         with open('nwobot.conf', 'w+') as file:
@@ -246,7 +250,7 @@ class IRC:
         with open('users', 'w+') as file:
             file.write(str(self.userDict))
     
-    def listActive(self,chan,minutes=10,caller=None):
+    def listActive(self,chan,minutes=10,caller=None,full=False,exclude=[]):
         activeList = []
         validList = []
         timenow = time.mktime(time.gmtime())
@@ -266,8 +270,8 @@ class IRC:
                         userDict.remove(group)
                         break
         for key in validList:
-            if key not in self.info['IGNORE'] and key not in self.info['NICK'] and timenow - self.activeDict[chan][key] <= minutes * 60:
-                activeList.append(key)
+            if key not in self.info['IGNORE'].split(',') and key != self.info['NICK'] and key not in exclude and (timenow - self.activeDict[chan][key] <= minutes * 60 or full):
+                    activeList.append(key)
         return activeList
                         
     def PRIVMSG(self,con,msg):
