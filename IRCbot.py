@@ -28,7 +28,10 @@ class IRC:
         
     def Main(self):
         while True:
-            serverRaw = self.irc.recv(4096).decode('utf-8')
+            try:
+                serverRaw = self.irc.recv(4096).decode('utf-8')
+            except UnicodeDecodeError:
+                continue
             serverOut = str(serverRaw).split('\n')
             for line in serverOut:
                 if len(line) < 1:
@@ -142,7 +145,7 @@ class IRC:
                     validList = []
                     for group in self.userDict.values():
                         validList.extend(group)
-                    if Log['nick'] not in validList and CAP == '+':
+                    if Log['nick'] not in validList and Log['cap'] == '+':
                         self.ircSend('WHOIS %s' % Log['nick'])
 
                     # list modifier commands

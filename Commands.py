@@ -7,7 +7,7 @@ commands = {}
 
 def redditAPI(self):
     try:
-        self.r = praw.Reddit('redFetch by u/NewellWorldOrder''Fetches reddit submission links')
+        self.r = praw.Reddit('redFetch by u/NewellWorldOrder''Fetches reddit links')
         enableNSFW = self.r.get_random_subreddit(nsfw=True)
         self.redditEnabled = True
         self.redditLimit = time.time()
@@ -38,38 +38,42 @@ def reddit(self,Log):
     else:
         r = self.r
         try:
-            subreddit = Log['trail'][1].lower()
-            if len(Log['trail']) > 2:
-                category = Log['trail'][2].lower()
-                if category == 'controversial':
-                    s = r.get_subreddit(subreddit).get_controversial(limit=1)
-                    submission = next(s)
-                elif category == 'hot':
-                    s = r.get_subreddit(subreddit).get_hot(limit=1)
-                    submission = next(s)
-                elif category == 'new':
-                    s = r.get_subreddit(subreddit).get_new(limit=1)
-                    submission = next(s)
-                elif category == 'random':
-                    submission = self.r.get_subreddit(subreddit).get_random_submission()
-                elif category == 'rising':
-                    s = r.get_subreddit(subreddit).get_rising(limit=1)
-                    submission = next(s)
-                elif category == 'top':
-                    s = r.get_subreddit(subreddit).get_top(limit=1)
-                    submission = next(s)
-                elif category == 'search' and len(Log['trail']) > 3:
-                    s = r.get_subreddit(subreddit).search('+'.join(Log['trail'][3:]),limit=1)
-                    submission = next(s)
-            else:
-                submission = self.r.get_subreddit(subreddit).get_random_submission()
-            nsfwstatus = ''
-            if submission.over_18:
-                nsfwstatus = 'NSFW '
-            self.PRIVMSG(Log['context'],'07Reddit 04%s10r/%s - 12%s 14( %s )' % (nsfwstatus, subreddit, submission.title, submission.url))
+            redditItem = Log['trail'][1]
+            if (len(Log['trail']) > 2 and Log['trail'][2].lower() != 'user') or len(Log['trail']) < 3:
+                sub = None
+                nsfwstatus = ''
+                if len(Log['trail']) > 2:
+                    category = Log['trail'][2].lower()
+                    if category == 'controversial':
+                        s = r.get_subreddit(redditItem.lower()).get_controversial(limit=1)
+                    elif category == 'hot':
+                        s = r.get_subreddit(redditItem.lower()).get_hot(limit=1)
+                    elif category == 'new':
+                        s = r.get_subreddit(redditItem.lower()).get_new(limit=1)
+                    elif category == 'random':
+                        sub = r.get_subreddit(redditItem.lower()).get_random_submission()
+                    elif category == 'rising':
+                        s = r.get_subreddit(redditItem.lower()).get_rising(limit=1)
+                    elif category == 'search' and len(Log['trail']) > 3:
+                        s = r.get_subreddit(redditItem.lower()).search('+'.join(Log['trail'][3:]),limit=1)
+                    elif category == 'top':
+                        s = r.get_subreddit(redditItem.lower()).get_top(limit=1)
+                else:
+                    sub = subreddit.get_random_submission()
+                if not sub:
+                    sub = next(s)
+                if sub.over_18:
+                    nsfwstatus = 'NSFW '
+                self.PRIVMSG(Log['context'],'07Reddit 04%s10%s - 12%s 14( %s )' % (nsfwstatus, sub.subreddit.url, sub.title, sub.url))
+            elif (len(Log['trail']) > 2 and Log['trail'][2].lower() == 'user'):
+                try:
+                    user = r.get_redditor(redditItem)
+                    self.PRIVMSG(Log['context'],'07Reddit 10%s 14( %s )' % (user.name, user._url))
+                except:
+                    self.PRIVMSG(Log['context'],'Reddit user \'%s\' does not exist.' % (redditItem))
         except:
-            print('Error fetching subreddit')
-            self.PRIVMSG(Log['context'],'I cannot fetch this subreddit at the moment')
+            print('Error fetching object from Reddit.')
+            self.PRIVMSG(Log['context'],'Error fetching object from Reddit.')
         self.redditLimit = Log['time']
 commands['!reddit'] = reddit
 

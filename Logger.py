@@ -11,6 +11,7 @@ def interpret(line):
     Log['host'] = ''
     Log['command'] = ''
     Log['parameters'] = []
+    Log['cap'] = ''
     Log['trail'] = []
     words = str(line).split()
     if line[0] == ':':
@@ -30,7 +31,7 @@ def interpret(line):
     if len(Log['trail']) > 0 and len(Log['trail'][0]) > 0:
         Log['trail'][0] = Log['trail'][0][1:]
         if len(Log['trail'][0]) > 0 and (Log['trail'][0][0] == '+' or Log['trail'][0][0] == '-'):
-            CAP = Log['trail'][0][0]
+            Log['cap'] = Log['trail'][0][0]
             Log['trail'][0] = Log['trail'][0][1:]
             
     print('%s %s' % (time.strftime('%H:%M:%S', time.gmtime(Log['time'])), Log['line']))
