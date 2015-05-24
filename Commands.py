@@ -120,7 +120,7 @@ def wiki(self,Log):
     if content == 'Other reasons this message may be displayed:':
         self.PRIVMSG(Log['context'],'Wikipedia 03%s – 12No article found. Maybe you could write it: 11https://en.wikipedia.org/w/index.php?title=Special:UserLogin&returnto=%s' % (title, search))
     else:
-        if content == '%s may refer to:' % re.sub('http://en.wikipedia.org/wiki/','',r.url):
+        if 'may refer to:' in content:
             r = requests.get('http://en.wikipedia.org%s' % soup.find('ul').find('li').find('a')['href'])
             soup = BeautifulSoup(r.text)
             title = soup.title.text
