@@ -28,12 +28,19 @@ class IRC:
         
     def Main(self):
         while True:
+            rawdata = self.irc.recv(4096)
             try:
-                serverRaw = self.irc.recv(4096).decode('utf-8')
+                data = rawdata.decode('utf-8')
             except UnicodeDecodeError:
-                continue
-            serverOut = str(serverRaw).split('\n')
-            for line in serverOut:
+                try:
+                    data = rawdata.decode('cp1252')
+                except UnicodeDecodeError:
+                    try:
+                        data = rawdata.decode('iso8859-1')
+                    except:
+                        continue
+            lines = str(data).split('\n')
+            for line in lines:
                 if len(line) < 1:
                     continue
                 
