@@ -6,13 +6,13 @@ def config(self):
             self.info = eval(file.read())
     except:
         setup()
-        config()
+        config(self)
     try:
         with open('users', 'r') as file:
             self.userDict = eval(file.read())
     except:
         userlist()
-        config()
+        config(self)
     if self.info['SASL'].lower() == 'y':
         self.SASL = True
     else:
