@@ -71,7 +71,7 @@ class IRC:
 
                 # checks when identified with nickserv
                 if Log['command'] == 'NOTICE' and Log['nick'] == 'NickServ':
-                    if len(trail) > 3:
+                    if len(Log['trail']) > 3:
                         if 'registered' in Log['trail'][3]:
                             self.ircSend('PRIVMSG NickServ :identify %s' % self.info['PASS'])
                             continue
