@@ -10,15 +10,14 @@ def redditAPI(self):
         self.r = praw.Reddit('redFetch by u/NewellWorldOrder''Fetches reddit links')
         enableNSFW = self.r.get_random_subreddit(nsfw=True)
         self.redditEnabled = True
-        self.redditLimit = time.time()
     except:
         self.redditEnabled = False
-    
+
 def nwodo(self,Log):
     if Log['host'] in self.info['SUDOER'].split(',') or Log['host'] in self.info['OWNER'].split(','):
         self.ircSend(' '.join(Log['trail'][1:]))
 commands['!nwodo'] = nwodo
-        
+
 def active(self,Log):
     if len(self.listActive(Log['context'])) == 1:
         self.PRIVMSG(Log['context'],'There is 1 active user here (only users identified with NickServ are included)')
@@ -33,50 +32,41 @@ commands['!activelist'] = activelist
 def reddit(self,Log):
     if not self.redditEnabled:
         self.redditAPI()
-    elif Log['time'] - self.redditLimit <= 2:
-        self.ircSend('NOTICE %s :Please wait %s second(s) due to Reddit API restrictions' % (Log['nick'], str(round(2 - (Log['time'] - self.redditLimit), 2))))
     else:
         r = self.r
-        try:
-            redditItem = Log['trail'][1]
-            if (len(Log['trail']) > 2 and Log['trail'][2].lower() != 'user') or len(Log['trail']) < 3:
-                sub = None
-                nsfwstatus = ''
-                if len(Log['trail']) > 2:
-                    category = Log['trail'][2].lower()
-                    if category == 'controversial':
-                        s = r.get_subreddit(redditItem.lower()).get_controversial(limit=1)
-                    elif category == 'hot':
-                        s = r.get_subreddit(redditItem.lower()).get_hot(limit=1)
-                    elif category == 'new':
-                        s = r.get_subreddit(redditItem.lower()).get_new(limit=1)
-                    elif category == 'random':
-                        sub = r.get_subreddit(redditItem.lower()).get_random_submission()
-                    elif category == 'rising':
-                        s = r.get_subreddit(redditItem.lower()).get_rising(limit=1)
-                    elif category == 'search' and len(Log['trail']) > 3:
-                        s = r.get_subreddit(redditItem.lower()).search('+'.join(Log['trail'][3:]),limit=1)
-                    elif category == 'top':
-                        s = r.get_subreddit(redditItem.lower()).get_top(limit=1)
-                else:
-                    sub = subreddit.get_random_submission()
-                if not sub:
-                    sub = next(s)
-                if sub.over_18:
-                    nsfwstatus = 'NSFW '
-                self.PRIVMSG(Log['context'],'07Reddit 04%s10%s - 12%s 14( %s )' % (nsfwstatus, sub.subreddit.url, sub.title, sub.url))
-                self.redditLimit = Log['time']
-            elif (len(Log['trail']) > 2 and Log['trail'][2].lower() == 'user'):
-                try:
-                    user = r.get_redditor(redditItem)
-                    self.PRIVMSG(Log['context'],'07Reddit 10%s 14( %s )' % (user.name, user._url))
-                except:
-                    self.PRIVMSG(Log['context'],'Reddit user \'%s\' does not exist.' % (redditItem))
-                self.redditLimit = Log['time']
-        except:
-            print('Error fetching object from Reddit.')
-            self.PRIVMSG(Log['context'],'Error fetching object from Reddit.')
-        self.redditLimit = Log['time']
+        redditItem = Log['trail'][1]
+        if (len(Log['trail']) > 2 and Log['trail'][2].lower() != 'user') or len(Log['trail']) < 3:
+            sub = None
+            nsfwstatus = ''
+            if len(Log['trail']) > 2:
+                category = Log['trail'][2].lower()
+                if category == 'controversial':
+                    s = r.get_subreddit(redditItem.lower()).get_controversial(limit=1)
+                elif category == 'hot':
+                    s = r.get_subreddit(redditItem.lower()).get_hot(limit=1)
+                elif category == 'new':
+                    s = r.get_subreddit(redditItem.lower()).get_new(limit=1)
+                elif category == 'random':
+                    sub = r.get_subreddit(redditItem.lower()).get_random_submission()
+                elif category == 'rising':
+                    s = r.get_subreddit(redditItem.lower()).get_rising(limit=1)
+                elif category == 'search' and len(Log['trail']) > 3:
+                    s = r.get_subreddit(redditItem.lower()).search('+'.join(Log['trail'][3:]),limit=1)
+                elif category == 'top':
+                    s = r.get_subreddit(redditItem.lower()).get_top(limit=1)
+            else:
+                sub = r.get_subreddit(redditItem.lower()).get_random_submission()
+            if not sub:
+                sub = next(s)
+            if sub.over_18:
+                nsfwstatus = 'NSFW '
+            self.PRIVMSG(Log['context'],'07Reddit 04%s10%s - 12%s 14( %s )' % (nsfwstatus, sub.subreddit.url, sub.title, sub.url))
+        elif (len(Log['trail']) > 2 and Log['trail'][2].lower() == 'user'):
+            try:
+                user = r.get_redditor(redditItem)
+                self.PRIVMSG(Log['context'],'07Reddit 10%s 14( %s )' % (user.name, user._url))
+            except:
+                self.PRIVMSG(Log['context'],'Reddit user \'%s\' does not exist.' % (redditItem))
 commands['!reddit'] = reddit
 
 def ud(self,Log):
@@ -137,7 +127,7 @@ commands['!wiki'] = wiki
 def help_(self,Log):
     self.PRIVMSG(Log['context'],'My commands are: %s' % (' '.join(commands)))
 commands['!help'] = help_
-        
+
 def about(self,Log):
     try:
         with open('about.txt', 'r') as file:
@@ -146,6 +136,28 @@ def about(self,Log):
         with open('about.txt', 'w+') as file:
             file.write('Hi, I\'m an IRC bot written by NewellWorldOrder/nwo')
 commands['!about'] = about
+
+def list_(self, Log):
+    if Log['host'] in self.info['OWNER'] + self.info['SUDOER']:
+        try:
+            if Log['trail'][2].lower() == 'add':
+                for item in Log['trail'][3:]:
+                    if item not in self.info[Log['trail'][1].upper()]:
+                        self.info[Log['trail'][1].upper()].append(item)
+                        if Log['trail'][1].upper() == 'CHAN':
+                            self.ircSend('JOIN %s' % item)
+            elif Log['trail'][2].lower() == 'remove':
+                for item in Log['trail'][3:]:
+                    if item in self.info[Log['trail'][1].upper()]:
+                        self.info[Log['trail'][1].upper()].remove(item)
+                        if Log['trail'][1].upper() == 'CHAN':
+                            self.ircSend('PART %s' % item)
+            self.updateFile()
+        except KeyError:
+            self.ircSend('NOTICE %s :Requested field does not exist' % Log['nick'])
+    else:
+        self.ircSend('NOTICE %s :You are not authorized to perform that command' % Log['nick'])
+commands['!list'] = list_
 
 def Handler(self,Log):
     if Log['trail'][0].lower() in commands.keys():

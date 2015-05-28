@@ -8,24 +8,24 @@ class IRC:
     def __init__(self):
         Config.config(self)
         self.activeDict = {}
-        for channel in self.info['CHAN'].split(','):
+        for channel in self.info['CHAN']:
             self.activeDict[channel] = {}
         Commands.redditAPI(self)
         Soaker.Soaker(self)
         self.Connect()
         self.Main()
-        
+
     def Connect(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((self.info['HOST'], int(self.info['PORT'])))
         self.irc = ssl.wrap_socket(sock)
         connectMSG = []
-        if self.SASL:
+        if self.info['SASL']:
             self.ircSend('CAP LS')
         self.ircSend('NICK %s' % self.info['NICK'])
         self.ircSend('USER %s %s %s :%s' % (self.info['NICK'], self.info['NICK'], self.info['NICK'], self.info['NAME']))
-        self.ircSend('JOIN %s' % self.info['CHAN'])
-        
+        self.ircSend('JOIN %s' % ','.join(self.info['CHAN']))
+
     def Main(self):
         while True:
             rawdata = self.irc.recv(4096)
@@ -43,16 +43,16 @@ class IRC:
             for line in lines:
                 if len(line) < 1:
                     continue
-                
+
                 Log = Logger.interpret(line)
-                
+
                 # reply to pings
                 if Log['command'] == 'PING':
                     self.ircSend('PONG :%s' % Log['trail'][0])
                     continue
 
                 # SASL
-                if self.SASL:
+                if self.info['SASL']:
                     if Log['command'] == 'CAP':
                         if Log['parameters'] [0] == '*' and Log['parameters'][1] == 'LS':
                             self.ircSend('CAP REQ :%s' % ' '.join(Log['trail']))
@@ -66,7 +66,7 @@ class IRC:
                         continue
                     if Log['command'] == '903':
                         self.ircSend('CAP END')
-                        self.ircSend('JOIN %s' % self.info['CHAN'])
+                        self.ircSend('JOIN %s' % ','.join(self.info['CHAN']))
                         continue
 
                 # checks when identified with nickserv
@@ -76,16 +76,16 @@ class IRC:
                             self.ircSend('PRIVMSG NickServ :identify %s' % self.info['PASS'])
                             continue
                         if Log['trail'][3] == 'identified':
-                            self.ircSend('JOIN %s' % self.info['CHAN'])
+                            self.ircSend('JOIN %s' % ','.join(self.info['CHAN']))
                             continue
 
                 # checks for INVITE received
                 if Log['command'] == 'INVITE' and Log['parameters'][0] == self.info['NICK']:
-                    if Log['trail'][0] not in self.info['CHAN'].split(','):
-                        self.info['CHAN'] = str(self.info['CHAN'])+','+Log['trail'][0]
+                    if Log['trail'][0] not in self.info['CHAN']:
+                        self.info['CHAN'].append(Log['trail'][0])
                         self.updateFile()
-                        self.ircSend('JOIN %s' % self.info['CHAN'])
-                        
+                        self.ircSend('JOIN %s' % Log['trail'][0])
+
                 # checks channel join
                 if Log['command'] == 'JOIN':
                     if Log['nick'] == self.info['NICK']:
@@ -111,15 +111,15 @@ class IRC:
                         self.activeDict[Log['parameters'][-1]] = {}
                     for names in Log['trail']:
                         names = names.lstrip('@+')
-                        if names !=  self.info['NICK']:
+                        if names != self.info['NICK']:
                             self.activeDict[Log['parameters'][-1]][names] = 0
                     continue
-                    
+
                 # parses WHOIS result
                 if (str(Log['command']) == '330' or str(Log['command']) == '354') and len(Log['parameters']) > 2:
                     if Log['parameters'][2] not in self.userDict:
                         self.userDict[Log['parameters'][2]] = []
-                    if Log['parameters'][1] not in self.userDict[Log['parameters'][2]] and Log['parameters'][1] !=  self.info['NICK']:
+                    if Log['parameters'][1] not in self.userDict[Log['parameters'][2]] and Log['parameters'][1] != self.info['NICK']:
                         self.userDict[Log['parameters'][2]].append(Log['parameters'][1])
                     self.updateFile()
                     continue
@@ -130,7 +130,7 @@ class IRC:
                         del self.activeDict[Log['parameters'][0]][Log['nick']]
                     continue
                 if Log['command'] == 'QUIT':
-                    for channels in self.info['CHAN'].split(','):
+                    for channels in self.info['CHAN']:
                         if Log['nick'] in self.activeDict[channels]:
                             del self.activeDict[channels][Log['nick']]
                     continue
@@ -138,12 +138,6 @@ class IRC:
                 # checks when PRIVMSG received
                 if Log['command'] == 'PRIVMSG':
                     Log['context'] = Log['parameters'][0]
-                    
-                    def commandValid(cmd, minwords = 1):
-                        if len(Log['trail']) >=  minwords and cmd in Log['trail'][0].lower() and len(Log['trail'][0]) <=  len(cmd) + 1:
-                            return True
-                        else:
-                            return False
 
                     # builds last spoke list
                     if Log['context'] not in self.activeDict:
@@ -155,48 +149,12 @@ class IRC:
                     if Log['nick'] not in validList and Log['cap'] == '+':
                         self.ircSend('WHOIS %s' % Log['nick'])
 
-                    # list modifier commands
-                    if len(Log['trail']) > 2 and (Log['trail'][1].lower() == 'add' or Log['trail'][1].lower() == 'remove'):
-                        def addRemoveList(issuer, issuerNick, command, additem, addcat):
-                            if issuer in self.info['SUDOER'].split(',') or issuer in self.info['OWNER'].split(','):
-                                if command == 'add':
-                                    for item in additem:
-                                        if item not in self.info[addcat]:
-                                            self.info[addcat] = self.info[addcat]+','+item
-                                elif command == 'remove':
-                                    for item in additem:
-                                        if item in self.info[addcat].split(','):
-                                            updatedList = self.info[addcat].split(',')
-                                            updatedList.remove(item)
-                                            self.info[addcat] = ','.join(updatedList)
-                                self.updateFile()
-                            else:
-                                self.ircSend(issuerNick, 'NOTICE %s :You are not authorized to perform that command' % issuerNick)
-
-                        # adds channels to autojoin list and joins them
-                        if commandValid('!channel', 3):
-                            addRemoveList(Log['host'], Log['nick'], Log['trail'][1].lower(), Log['trail'][2:], 'CHAN')
-                            self.ircSend('JOIN %s' % self.info['CHAN'])
-                            if Log['trail'][1].lower() == 'remove':
-                                self.ircSend('PART %s' % ','.join(Log['trail'][2:]))
-                            continue
-
-                        # adds users to ignore list (ie: bots)
-                        if commandValid('!ignore', 3):
-                            addRemoveList(Log['host'], Log['nick'], Log['trail'][1].lower(), Log['trail'][2:], 'IGNORE')
-                            continue
-
-                        # adds users to sudoer list (ie: admins)
-                        if commandValid('!admin', 3):
-                            addRemoveList(Log['host'], Log['nick'], Log['trail'][1].lower(), Log['trail'][2:], 'SUDOER')
-                            continue
-                                
                     Soaker.Handler(self, Log)
 
                     Commands.Handler(self, Log)
-                    
+
                     URLInfo.Handler(self, Log)
-        
+
     def updateFile(self):
         with open('nwobot.conf', 'r') as file:
             oldConf = eval(file.read())
@@ -208,7 +166,7 @@ class IRC:
         if self.userDict != oldUser:
             with open('users', 'w+') as file:
                 file.write(str(self.userDict))
-    
+
     def listActive(self, chan, minutes = 10, caller = None, full = False, exclude = []):
         activeList = []
         validList = []
@@ -217,7 +175,7 @@ class IRC:
         mostRecent = list(dict(sorted(self.activeDict[chan].items(), key = itemgetter(1), reverse = True)).keys())
         for group in userDict:
             nickList = self.userDict[group]
-            if caller !=  None and caller in nickList:
+            if caller != None and caller in nickList:
                 userDict.remove(group)
                 break
         for rnick in mostRecent:
@@ -229,15 +187,15 @@ class IRC:
                         userDict.remove(group)
                         break
         for key in validList:
-            if key not in self.info['IGNORE'].split(',') and key !=  self.info['NICK'] and key not in exclude and (timenow - self.activeDict[chan][key] <=  minutes * 60 or full):
+            if key not in self.info['IGNORE'] and key != self.info['NICK'] and key not in exclude and (timenow - self.activeDict[chan][key] <= minutes * 60 or full):
                     activeList.append(key)
         return activeList
-                        
+
     def PRIVMSG(self, context, message):
         self.ircSend('PRIVMSG %s :%s' % (context, message))
 
     def ircSend(self, message):
         print('%s %s' % (time.strftime('%H:%M:%S', time.gmtime(time.time())), message))
         self.irc.send(bytes('%s\r\n' % message, 'UTF-8'))
-        
+
 IRC()

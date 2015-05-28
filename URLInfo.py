@@ -62,9 +62,9 @@ def basic(self,Log,url):
             self.PRIVMSG(Log['context'],'03%s 09( %s )' % (title, url))
     except Exception as e:
         print(e)
-        
+
 def Handler(self,Log):
-    if Log['nick'] not in self.info['IGNORE'].split(',') and ('http://' in Log['line'] or 'https://' in Log['line']):
+    if Log['nick'] not in self.info['IGNORE'] and ('http://' in Log['line'] or 'https://' in Log['line']):
         for w in Log['trail']:
             if 'http' in w and '://' in w:
                 found = False
