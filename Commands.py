@@ -65,12 +65,14 @@ def reddit(self,Log):
                 if sub.over_18:
                     nsfwstatus = 'NSFW '
                 self.PRIVMSG(Log['context'],'07Reddit 04%s10%s - 12%s 14( %s )' % (nsfwstatus, sub.subreddit.url, sub.title, sub.url))
+                self.redditLimit = Log['time']
             elif (len(Log['trail']) > 2 and Log['trail'][2].lower() == 'user'):
                 try:
                     user = r.get_redditor(redditItem)
                     self.PRIVMSG(Log['context'],'07Reddit 10%s 14( %s )' % (user.name, user._url))
                 except:
                     self.PRIVMSG(Log['context'],'Reddit user \'%s\' does not exist.' % (redditItem))
+                self.redditLimit = Log['time']
         except:
             print('Error fetching object from Reddit.')
             self.PRIVMSG(Log['context'],'Error fetching object from Reddit.')

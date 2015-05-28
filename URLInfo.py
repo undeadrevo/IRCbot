@@ -64,7 +64,7 @@ def basic(self,Log,url):
         print(e)
         
 def Handler(self,Log):
-    if 'http://' in Log['line'] or 'https://' in Log['line']:
+    if Log['nick'] not in self.info['IGNORE'].split(',') and ('http://' in Log['line'] or 'https://' in Log['line']):
         for w in Log['trail']:
             if 'http' in w and '://' in w:
                 found = False
