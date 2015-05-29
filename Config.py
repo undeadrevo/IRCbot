@@ -12,15 +12,7 @@ def config(self):
             self.userDict = eval(file.read())
     except:
         userlist()
-<<<<<<< HEAD
         config(self)
-    if self.info['SASL'].lower() == 'y':
-        self.SASL = True
-    else:
-        self.SASL = False
-=======
-        config()
->>>>>>> origin/master
 
 def setup():
     unconfirmed = True
