@@ -19,8 +19,8 @@ def youtubeKey():
 
 def youtube(self,Log,url):
     vidID = url.split('youtu.be/')[-1].split('youtube.com/watch?v=')[-1].split('youtube.com/v/')[-1].split('#')[0].split('&')[0].split('?')[0]
-    payload = {'part': 'snippet,statistics', 'id': vidID, 'key': youtubeKey()}
     try:
+        payload = {'part': 'snippet,statistics', 'id': vidID, 'key': youtubeKey()}
         r = requests.get('https://www.googleapis.com/youtube/v3/videos', params = payload)
         data = r.json()
         title = data['items'][0]['snippet']['title']
