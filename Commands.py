@@ -14,7 +14,7 @@ def redditAPI(self):
         self.redditEnabled = False
 
 def nwodo(self,Log):
-    if Log['host'] in self.info['SUDOER'].split(',') or Log['host'] in self.info['OWNER'].split(','):
+    if Log['host'] in self.info['SUDOER'] + self.info['OWNER']:
         self.ircSend(' '.join(Log['trail'][1:]))
 commands['!nwodo'] = nwodo
 
