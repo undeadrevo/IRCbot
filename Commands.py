@@ -30,6 +30,7 @@ def activelist(self,Log):
 commands['!activelist'] = activelist
 
 def reddit(self,Log):
+    if len(Log['trail']) < 2: return
     if not self.redditEnabled:
         self.redditAPI()
     else:
